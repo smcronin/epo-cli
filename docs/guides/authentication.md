@@ -43,7 +43,7 @@ curl -X POST https://ops.epo.org/3.2/auth/accesstoken \
   "expires_in": "1199",
   "api_product_list": "[ops-prod]",
   "token_type": "Bearer",
-  "access_token": "4AWoepfVNgf09DRmimEnGdXcgoFU",
+  "access_token": "YOUR_ACCESS_TOKEN_HERE",
   "organization_name": "epo",
   "refresh_count": "0"
 }
@@ -55,7 +55,7 @@ Token is valid for ~1199 seconds (20 minutes).
 
 ```bash
 curl https://ops.epo.org/rest-services/published-data/publication/epodoc/EP1000000/biblio \
-  -H "Authorization: Bearer 4AWoepfVNgf09DRmimEnGdXcgoFU"
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN_HERE"
 ```
 
 ---
