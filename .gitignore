@@ -1,0 +1,6 @@
+epo-cli
+*.exe
+*.env
+.env
+config.yaml
+config.json
