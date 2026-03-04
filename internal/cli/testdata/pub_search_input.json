@@ -1,0 +1,42 @@
+{
+  "ops:world-patent-data": {
+    "ops:biblio-search": {
+      "ops:search-result": {
+        "ops:publication-reference": [
+          {
+            "@family-id": "98866456",
+            "@system": "ops.epo.org",
+            "document-id": {
+              "@document-id-type": "docdb",
+              "country": {
+                "$": "US"
+              },
+              "doc-number": {
+                "$": "12563169"
+              },
+              "kind": {
+                "$": "B1"
+              }
+            }
+          },
+          {
+            "@family-id": "98866381",
+            "@system": "ops.epo.org",
+            "document-id": {
+              "@document-id-type": "docdb",
+              "country": {
+                "$": "US"
+              },
+              "doc-number": {
+                "$": "12561319"
+              },
+              "kind": {
+                "$": "B1"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

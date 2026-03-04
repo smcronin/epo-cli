@@ -1,0 +1,739 @@
+[
+  {
+    "command": "epo auth configure",
+    "service": "auth",
+    "implemented": true,
+    "summary": "Persist credentials to config file",
+    "optionalFlags": [
+      {
+        "name": "--client-id",
+        "description": "OPS client ID (consumer key)"
+      },
+      {
+        "name": "--client-secret",
+        "description": "OPS client secret"
+      }
+    ],
+    "outputShapeHint": "Configuration status with config file path and masked credentials",
+    "examples": [
+      "epo auth configure --client-id $EPO_CLIENT_ID --client-secret $EPO_CLIENT_SECRET -f json -q"
+    ]
+  },
+  {
+    "command": "epo auth token",
+    "service": "auth",
+    "implemented": true,
+    "summary": "Request a fresh OAuth access token",
+    "optionalFlags": [
+      {
+        "name": "--raw",
+        "description": "Print access token only"
+      },
+      {
+        "name": "--client-id",
+        "description": "Override client ID"
+      },
+      {
+        "name": "--client-secret",
+        "description": "Override client secret"
+      }
+    ],
+    "outputShapeHint": "Token metadata plus access token and credential source",
+    "examples": [
+      "epo auth token -f json -q",
+      "epo auth token --raw"
+    ]
+  },
+  {
+    "command": "epo auth check",
+    "service": "auth",
+    "implemented": true,
+    "summary": "Validate credentials by requesting a token",
+    "outputShapeHint": "Validation status and token metadata",
+    "examples": [
+      "epo auth check -f json -q"
+    ]
+  },
+  {
+    "command": "epo config set-creds",
+    "service": "config",
+    "implemented": true,
+    "summary": "Persist client credentials in global config",
+    "optionalFlags": [
+      {
+        "name": "--from-env",
+        "description": "Load credentials from environment"
+      },
+      {
+        "name": "--from-dotenv",
+        "description": "Load credentials from dotenv file path"
+      },
+      {
+        "name": "--client-id",
+        "description": "Global flag source for client ID"
+      },
+      {
+        "name": "--client-secret",
+        "description": "Global flag source for client secret"
+      }
+    ],
+    "args": [
+      {
+        "name": "client-id",
+        "example": "your-client-id"
+      },
+      {
+        "name": "client-secret",
+        "example": "your-client-secret"
+      }
+    ],
+    "outputShapeHint": "Save status, source, config path, and masked credentials",
+    "examples": [
+      "epo config set-creds --from-env -f json -q",
+      "epo config set-creds --from-dotenv .env -f json -q",
+      "epo config set-creds my-id my-secret -f json -q"
+    ]
+  },
+  {
+    "command": "epo config show",
+    "service": "config",
+    "implemented": true,
+    "summary": "Show global config path and credential status",
+    "outputShapeHint": "Config path plus masked credential status flags",
+    "examples": [
+      "epo config show -f json -q"
+    ]
+  },
+  {
+    "command": "epo update",
+    "service": "release",
+    "implemented": true,
+    "summary": "Self-update binary from GitHub Releases",
+    "optionalFlags": [
+      {
+        "name": "--check",
+        "description": "Check latest version without installing"
+      },
+      {
+        "name": "--version",
+        "description": "Install a specific release tag"
+      },
+      {
+        "name": "--force",
+        "description": "Reinstall even if current version matches"
+      },
+      {
+        "name": "--dry-run",
+        "description": "Download and verify without replace"
+      }
+    ],
+    "outputShapeHint": "Version/asset/installation status with migration metadata",
+    "examples": [
+      "epo update --check -f json -q",
+      "epo update --version v0.1.2 -f json -q"
+    ]
+  },
+  {
+    "command": "epo pub biblio",
+    "service": "published-data",
+    "implemented": true,
+    "summary": "Retrieve bibliographic data",
+    "optionalFlags": [
+      {
+        "name": "--ref-type",
+        "default": "publication"
+      },
+      {
+        "name": "--input-format",
+        "default": "epodoc"
+      },
+      {
+        "name": "--constituents",
+        "default": "biblio"
+      }
+    ],
+    "args": [
+      {
+        "name": "reference",
+        "required": true,
+        "description": "Publication/application/priority reference",
+        "example": "EP1000000.A1"
+      }
+    ],
+    "outputShapeHint": "Published-data envelope with throttle, quota, and JSON results",
+    "examples": [
+      "epo pub biblio EP1000000.A1 -f json -q"
+    ]
+  },
+  {
+    "command": "epo pub abstract",
+    "service": "published-data",
+    "implemented": true,
+    "summary": "Retrieve abstract data",
+    "optionalFlags": [
+      {
+        "name": "--ref-type",
+        "default": "publication"
+      },
+      {
+        "name": "--input-format",
+        "default": "epodoc"
+      }
+    ],
+    "args": [
+      {
+        "name": "reference",
+        "required": true,
+        "example": "EP1000000.A1"
+      }
+    ],
+    "outputShapeHint": "Published-data envelope with abstract payload",
+    "examples": [
+      "epo pub abstract EP1000000.A1 -f json -q"
+    ]
+  },
+  {
+    "command": "epo pub claims",
+    "service": "published-data",
+    "implemented": true,
+    "summary": "Retrieve claims fulltext",
+    "optionalFlags": [
+      {
+        "name": "--ref-type",
+        "default": "publication"
+      },
+      {
+        "name": "--input-format",
+        "default": "epodoc"
+      }
+    ],
+    "args": [
+      {
+        "name": "reference",
+        "required": true,
+        "example": "EP1000000.A1"
+      }
+    ],
+    "outputShapeHint": "Published-data envelope with claims payload",
+    "examples": [
+      "epo pub claims EP1000000.A1 -f json -q"
+    ]
+  },
+  {
+    "command": "epo pub description",
+    "service": "published-data",
+    "implemented": true,
+    "summary": "Retrieve description fulltext",
+    "optionalFlags": [
+      {
+        "name": "--ref-type",
+        "default": "publication"
+      },
+      {
+        "name": "--input-format",
+        "default": "epodoc"
+      }
+    ],
+    "args": [
+      {
+        "name": "reference",
+        "required": true,
+        "example": "EP1000000.A1"
+      }
+    ],
+    "outputShapeHint": "Published-data envelope with description payload",
+    "examples": [
+      "epo pub description EP1000000.A1 -f json -q"
+    ]
+  },
+  {
+    "command": "epo pub equivalents",
+    "service": "published-data",
+    "implemented": true,
+    "summary": "Retrieve simple-family equivalent publications",
+    "optionalFlags": [
+      {
+        "name": "--ref-type",
+        "default": "publication"
+      },
+      {
+        "name": "--input-format",
+        "default": "epodoc"
+      },
+      {
+        "name": "--constituents",
+        "description": "abstract, biblio, biblio,full-cycle, images"
+      }
+    ],
+    "args": [
+      {
+        "name": "reference",
+        "required": true,
+        "example": "EP1000000.A1"
+      }
+    ],
+    "outputShapeHint": "Published-data envelope with equivalents payload",
+    "examples": [
+      "epo pub equivalents EP1000000.A1 --constituents biblio -f json -q"
+    ]
+  },
+  {
+    "command": "epo pub search",
+    "service": "published-data",
+    "implemented": true,
+    "summary": "Run CQL search over published-data",
+    "requiredFlags": [
+      {
+        "name": "--q",
+        "required": true,
+        "description": "CQL expression"
+      }
+    ],
+    "optionalFlags": [
+      {
+        "name": "--range",
+        "description": "Result range header (example 1-25)"
+      },
+      {
+        "name": "--constituents",
+        "description": "biblio,abstract,full-cycle"
+      },
+      {
+        "name": "--post",
+        "description": "Use POST body instead of GET query"
+      }
+    ],
+    "outputShapeHint": "Published-data envelope with search result set and pagination",
+    "examples": [
+      "epo pub search --q \"applicant=IBM\" --range 1-25 -f json -q"
+    ]
+  },
+  {
+    "command": "epo methods --json",
+    "service": "catalog",
+    "implemented": true,
+    "summary": "Discover command surface and argument contracts",
+    "outputShapeHint": "Array of command descriptors with flags, args, and examples",
+    "examples": [
+      "epo methods --json -f json -q"
+    ]
+  },
+  {
+    "command": "epo family get",
+    "service": "family",
+    "implemented": true,
+    "summary": "Retrieve INPADOC family members and optional constituents",
+    "optionalFlags": [
+      {
+        "name": "--ref-type",
+        "default": "publication"
+      },
+      {
+        "name": "--input-format",
+        "default": "docdb"
+      },
+      {
+        "name": "--constituents",
+        "description": "biblio, legal, or biblio,legal"
+      }
+    ],
+    "args": [
+      {
+        "name": "reference",
+        "required": true,
+        "example": "EP.1000000.A1"
+      }
+    ],
+    "outputShapeHint": "Family envelope with member documents and optional biblio/legal payload",
+    "examples": [
+      "epo family get EP.1000000.A1 --ref-type publication --input-format docdb -f json -q"
+    ]
+  },
+  {
+    "command": "epo number convert",
+    "service": "number-service",
+    "implemented": true,
+    "summary": "Convert number formats via number-service",
+    "optionalFlags": [
+      {
+        "name": "--ref-type",
+        "default": "application"
+      },
+      {
+        "name": "--from-format",
+        "default": "docdb"
+      },
+      {
+        "name": "--to-format",
+        "default": "epodoc"
+      }
+    ],
+    "args": [
+      {
+        "name": "reference",
+        "required": true,
+        "example": "EP.1000000.A1"
+      }
+    ],
+    "outputShapeHint": "Number-service envelope with converted reference formats",
+    "examples": [
+      "epo number convert EP.1000000.A1 --ref-type publication --from-format docdb --to-format epodoc -f json -q"
+    ]
+  },
+  {
+    "command": "epo register get",
+    "service": "register",
+    "implemented": true,
+    "summary": "Fetch EP register dossier data",
+    "optionalFlags": [
+      {
+        "name": "--constituents",
+        "description": "biblio,events,procedural-steps"
+      }
+    ],
+    "args": [
+      {
+        "name": "reference",
+        "required": true,
+        "example": "EP99203729"
+      }
+    ],
+    "outputShapeHint": "Register envelope with dossier payload",
+    "examples": [
+      "epo register get EP99203729 -f json -q",
+      "epo register get EP99203729 --constituents biblio,events -f json -q"
+    ]
+  },
+  {
+    "command": "epo register events",
+    "service": "register",
+    "implemented": true,
+    "summary": "Fetch register events endpoint",
+    "args": [
+      {
+        "name": "reference",
+        "required": true,
+        "example": "EP99203729"
+      }
+    ],
+    "outputShapeHint": "Register envelope with event list",
+    "examples": [
+      "epo register events EP99203729 -f json -q"
+    ]
+  },
+  {
+    "command": "epo register procedural-steps",
+    "service": "register",
+    "implemented": true,
+    "summary": "Fetch register procedural steps endpoint",
+    "args": [
+      {
+        "name": "reference",
+        "required": true,
+        "example": "EP99203729"
+      }
+    ],
+    "outputShapeHint": "Register envelope with procedural steps",
+    "examples": [
+      "epo register procedural-steps EP99203729 -f json -q"
+    ]
+  },
+  {
+    "command": "epo register upp",
+    "service": "register",
+    "implemented": true,
+    "summary": "Fetch unitary patent protection endpoint",
+    "args": [
+      {
+        "name": "reference",
+        "required": true,
+        "example": "EP99203729"
+      }
+    ],
+    "outputShapeHint": "Register envelope with UPP payload",
+    "examples": [
+      "epo register upp EP99203729 -f json -q"
+    ]
+  },
+  {
+    "command": "epo register search",
+    "service": "register",
+    "implemented": true,
+    "summary": "Run CQL search against register",
+    "requiredFlags": [
+      {
+        "name": "--q",
+        "required": true,
+        "description": "CQL expression"
+      }
+    ],
+    "optionalFlags": [
+      {
+        "name": "--range",
+        "description": "Result range header (example 1-25)"
+      },
+      {
+        "name": "--post",
+        "description": "Use POST body instead of GET query"
+      }
+    ],
+    "outputShapeHint": "Register envelope with search results",
+    "examples": [
+      "epo register search --q \"pa=IBM\" --range 1-25 -f json -q"
+    ]
+  },
+  {
+    "command": "epo legal get",
+    "service": "legal",
+    "implemented": true,
+    "summary": "Fetch legal status events",
+    "optionalFlags": [
+      {
+        "name": "--ref-type",
+        "default": "publication"
+      },
+      {
+        "name": "--input-format",
+        "default": "docdb"
+      }
+    ],
+    "args": [
+      {
+        "name": "reference",
+        "required": true,
+        "example": "EP.1000000.A1"
+      }
+    ],
+    "outputShapeHint": "Legal envelope with INPADOC events",
+    "examples": [
+      "epo legal get EP.1000000.A1 --ref-type publication --input-format docdb -f json -q"
+    ]
+  },
+  {
+    "command": "epo cpc get",
+    "service": "classification/cpc",
+    "implemented": true,
+    "summary": "Retrieve CPC symbol details",
+    "optionalFlags": [
+      {
+        "name": "--depth",
+        "description": "Depth integer or all"
+      },
+      {
+        "name": "--navigation",
+        "description": "Include prev/next nodes"
+      },
+      {
+        "name": "--ancestors",
+        "description": "Include ancestor nodes"
+      },
+      {
+        "name": "--accept",
+        "default": "application/cpc+xml"
+      }
+    ],
+    "args": [
+      {
+        "name": "symbol",
+        "required": true,
+        "example": "H04W"
+      }
+    ],
+    "outputShapeHint": "CPC envelope (XML body in raw field by default)",
+    "examples": [
+      "epo cpc get H04W --depth 1 -f json -q"
+    ]
+  },
+  {
+    "command": "epo cpc search",
+    "service": "classification/cpc",
+    "implemented": true,
+    "summary": "Search CPC symbols by keyword",
+    "requiredFlags": [
+      {
+        "name": "--q",
+        "required": true,
+        "description": "Search keyword"
+      }
+    ],
+    "optionalFlags": [
+      {
+        "name": "--range",
+        "description": "Range window, example 1-20"
+      },
+      {
+        "name": "--accept",
+        "default": "application/cpc+xml"
+      }
+    ],
+    "outputShapeHint": "CPC envelope (XML body in raw field by default)",
+    "examples": [
+      "epo cpc search --q chemistry --range 1-20 -f json -q"
+    ]
+  },
+  {
+    "command": "epo cpc media",
+    "service": "classification/cpc",
+    "implemented": true,
+    "summary": "Fetch CPC media asset",
+    "optionalFlags": [
+      {
+        "name": "--accept",
+        "default": "image/gif"
+      },
+      {
+        "name": "--out",
+        "description": "Write binary payload to file"
+      },
+      {
+        "name": "--include-body",
+        "description": "Include base64 body in JSON output"
+      }
+    ],
+    "args": [
+      {
+        "name": "media-id",
+        "required": true,
+        "example": "1000.gif"
+      }
+    ],
+    "outputShapeHint": "CPC envelope with media metadata and optional base64",
+    "examples": [
+      "epo cpc media 1000.gif --out cpc.gif -f json -q"
+    ]
+  },
+  {
+    "command": "epo cpc map",
+    "service": "classification/cpc",
+    "implemented": true,
+    "summary": "Map CPC/ECLA/IPC symbols",
+    "optionalFlags": [
+      {
+        "name": "--from",
+        "default": "cpc"
+      },
+      {
+        "name": "--to",
+        "default": "ecla"
+      },
+      {
+        "name": "--additional",
+        "description": "Request additional mapping context"
+      },
+      {
+        "name": "--accept",
+        "default": "application/cpc+xml"
+      }
+    ],
+    "args": [
+      {
+        "name": "symbol",
+        "required": true,
+        "example": "A61K9/00"
+      }
+    ],
+    "outputShapeHint": "CPC mapping envelope (XML body in raw field by default)",
+    "examples": [
+      "epo cpc map A61K9/00 --from cpc --to ecla -f json -q"
+    ]
+  },
+  {
+    "command": "epo usage stats",
+    "service": "usage",
+    "implemented": true,
+    "summary": "Fetch OPS usage stats",
+    "optionalFlags": [
+      {
+        "name": "--date",
+        "description": "Single date dd/mm/yyyy"
+      },
+      {
+        "name": "--from",
+        "description": "Range start dd/mm/yyyy"
+      },
+      {
+        "name": "--to",
+        "description": "Range end dd/mm/yyyy"
+      }
+    ],
+    "outputShapeHint": "Usage envelope with message counts and response size",
+    "examples": [
+      "epo usage stats --date 01/03/2024 -f json -q",
+      "epo usage stats --from 01/03/2024 --to 07/03/2024 -f json -q"
+    ]
+  },
+  {
+    "command": "epo raw get",
+    "service": "raw",
+    "implemented": true,
+    "summary": "Run a raw GET request",
+    "optionalFlags": [
+      {
+        "name": "--base-url",
+        "default": "https://ops.epo.org/rest-services"
+      },
+      {
+        "name": "--accept",
+        "default": "application/json"
+      },
+      {
+        "name": "--query",
+        "description": "Repeatable key=value pair"
+      }
+    ],
+    "args": [
+      {
+        "name": "path",
+        "required": true,
+        "example": "/published-data/search"
+      }
+    ],
+    "outputShapeHint": "Raw envelope with direct service response",
+    "examples": [
+      "epo raw get /published-data/search --query q=applicant=IBM -f json -q"
+    ]
+  },
+  {
+    "command": "epo raw post",
+    "service": "raw",
+    "implemented": true,
+    "summary": "Run a raw POST request",
+    "optionalFlags": [
+      {
+        "name": "--base-url",
+        "default": "https://ops.epo.org/rest-services"
+      },
+      {
+        "name": "--accept",
+        "default": "application/json"
+      },
+      {
+        "name": "--content-type",
+        "default": "application/json"
+      },
+      {
+        "name": "--query",
+        "description": "Repeatable key=value pair"
+      },
+      {
+        "name": "--body",
+        "description": "Inline request body"
+      },
+      {
+        "name": "--body-file",
+        "description": "Body file path"
+      }
+    ],
+    "args": [
+      {
+        "name": "path",
+        "required": true,
+        "example": "/published-data/search"
+      }
+    ],
+    "outputShapeHint": "Raw envelope with direct service response",
+    "examples": [
+      "epo raw post /published-data/search --content-type text/plain --body \"q=applicant%3DIBM\" -f json -q"
+    ]
+  }
+]

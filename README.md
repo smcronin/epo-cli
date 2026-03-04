@@ -24,7 +24,7 @@ OPS provides machine-to-machine access to the EPO's full patent data corpus (120
 ## Installation
 
 ```bash
-go install github.com/smcronin/epo-cli@latest
+go install github.com/smcronin/epo-cli/cmd/epo@latest
 ```
 
 Or build from source:
@@ -32,7 +32,7 @@ Or build from source:
 ```bash
 git clone https://github.com/smcronin/epo-cli
 cd epo-cli
-go build -o epo-cli ./cmd/epo-cli
+go build -o epo ./cmd/epo
 ```
 
 ## Authentication
@@ -44,7 +44,7 @@ export EPO_CLIENT_ID=your_consumer_key
 export EPO_CLIENT_SECRET=your_consumer_secret
 
 # Or use a config file
-epo-cli auth configure
+epo config set-creds --from-env
 ```
 
 See [Authentication Guide](docs/guides/authentication.md) for full details.
@@ -53,25 +53,31 @@ See [Authentication Guide](docs/guides/authentication.md) for full details.
 
 ```bash
 # Bibliographic data
-epo-cli biblio EP1000000
+epo pub biblio EP1000000.A1
 
 # Patent family (INPADOC)
-epo-cli family EP1000000
+epo family get EP.1000000.A1
 
 # Full text search
-epo-cli search --applicant IBM --cpc H04W
+epo pub search --q "applicant=IBM"
 
 # Claims
-epo-cli claims EP1000000
+epo pub claims EP1000000.A1
 
 # Legal status
-epo-cli legal EP1000000
+epo legal get EP1000000.A1
 
 # Register history (EP only)
-epo-cli register EP99203729
+epo register get EP99203729
 
 # Number format conversion
-epo-cli number EP1000000 --to docdb
+epo number convert EP.1000000.A1 --ref-type publication --from-format docdb --to-format epodoc
+
+# Show saved credential status
+epo config show
+
+# Check latest release / updater status
+epo update --check
 ```
 
 See [Examples](examples/) for real-world usage patterns.

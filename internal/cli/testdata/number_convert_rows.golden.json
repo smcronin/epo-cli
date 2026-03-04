@@ -1,0 +1,14 @@
+[
+  {
+    "inputCountry": "EP",
+    "inputDocNumber": "1000000",
+    "inputFormat": "docdb",
+    "inputKind": "A1",
+    "inputType": "publication",
+    "outputCountry": null,
+    "outputDocNumber": "EP1000000",
+    "outputFormat": "epodoc",
+    "outputKind": "A1",
+    "outputType": "publication"
+  }
+]

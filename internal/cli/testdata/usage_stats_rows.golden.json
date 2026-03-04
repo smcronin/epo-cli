@@ -1,0 +1,10 @@
+[
+  {
+    "environment": "prod",
+    "notices": "Source:BigQuery | query served by:job_example"
+  },
+  {
+    "environment": "sandbox",
+    "notices": "Source:BigQuery | query served by:job_example"
+  }
+]

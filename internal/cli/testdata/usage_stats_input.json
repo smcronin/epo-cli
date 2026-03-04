@@ -1,0 +1,16 @@
+{
+  "environments": [
+    {
+      "name": "prod"
+    },
+    {
+      "name": "sandbox"
+    }
+  ],
+  "metaData": {
+    "notices": [
+      "Source:BigQuery",
+      "query served by:job_example"
+    ]
+  }
+}

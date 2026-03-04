@@ -1,0 +1,90 @@
+{
+  "ops:world-patent-data": {
+    "ops:patent-family": {
+      "ops:family-member": [
+        {
+          "@family-id": "19768124",
+          "application-reference": {
+            "document-id": {
+              "@document-id-type": "docdb",
+              "country": {
+                "$": "EP"
+              },
+              "date": {
+                "$": "19991108"
+              },
+              "doc-number": {
+                "$": "99203729"
+              },
+              "kind": {
+                "$": "A"
+              }
+            }
+          },
+          "publication-reference": {
+            "document-id": [
+              {
+                "@document-id-type": "docdb",
+                "country": {
+                  "$": "EP"
+                },
+                "date": {
+                  "$": "20000517"
+                },
+                "doc-number": {
+                  "$": "1000000"
+                },
+                "kind": {
+                  "$": "A1"
+                }
+              },
+              {
+                "@document-id-type": "epodoc",
+                "doc-number": {
+                  "$": "EP1000000"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "@family-id": "19768124",
+          "application-reference": {
+            "document-id": {
+              "@document-id-type": "docdb",
+              "country": {
+                "$": "US"
+              },
+              "date": {
+                "$": "19981208"
+              },
+              "doc-number": {
+                "$": "20685698"
+              },
+              "kind": {
+                "$": "A"
+              }
+            }
+          },
+          "publication-reference": {
+            "document-id": {
+              "@document-id-type": "docdb",
+              "country": {
+                "$": "US"
+              },
+              "date": {
+                "$": "20000725"
+              },
+              "doc-number": {
+                "$": "6093011"
+              },
+              "kind": {
+                "$": "A"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

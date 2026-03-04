@@ -1,0 +1,89 @@
+{
+  "ops:world-patent-data": {
+    "ops:register-search": {
+      "@total-result-count": "2",
+      "reg:register-documents": {
+        "reg:register-document": [
+          {
+            "reg:bibliographic-data": {
+              "reg:application-reference": {
+                "reg:document-id": {
+                  "reg:country": {
+                    "$": "EP"
+                  },
+                  "reg:doc-number": {
+                    "$": "25734468"
+                  }
+                }
+              },
+              "reg:publication-reference": {
+                "reg:document-id": {
+                  "reg:country": {
+                    "$": "WO"
+                  },
+                  "reg:date": {
+                    "$": "20260108"
+                  },
+                  "reg:doc-number": {
+                    "$": "2026009065"
+                  }
+                }
+              },
+              "reg:invention-title": [
+                {
+                  "$": "CONSTRAINED GENERATION FOR ACCELERATED MATERIAL DISCOVERY AND DESIGN USING GENERATIVE ARTIFICIAL INTELLIGENCE MODELS",
+                  "@lang": "en"
+                },
+                {
+                  "$": "Titre en francais",
+                  "@lang": "fr"
+                }
+              ]
+            },
+            "reg:ep-patent-statuses": {
+              "reg:ep-patent-status": {
+                "$": "Pending"
+              }
+            }
+          },
+          {
+            "reg:bibliographic-data": {
+              "reg:application-reference": {
+                "reg:document-id": {
+                  "reg:country": {
+                    "$": "EP"
+                  },
+                  "reg:doc-number": {
+                    "$": "25794345"
+                  }
+                }
+              },
+              "reg:publication-reference": {
+                "reg:document-id": {
+                  "reg:country": {
+                    "$": "WO"
+                  },
+                  "reg:date": {
+                    "$": "20251030"
+                  },
+                  "reg:doc-number": {
+                    "$": "2025224553"
+                  }
+                }
+              },
+              "reg:invention-title": {
+                "$": "DYNAMIC WORKSPACE CREATION WITH AUTOMATED OBFUSCATION AS A COMPUTING SERVICE",
+                "@lang": "en"
+              }
+            },
+            "reg:ep-patent-statuses": {
+              "reg:ep-patent-status": {
+                "$": "Published"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

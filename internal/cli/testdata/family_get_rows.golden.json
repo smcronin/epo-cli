@@ -1,0 +1,24 @@
+[
+  {
+    "appCountry": "EP",
+    "appDate": "19991108",
+    "appDocNumber": "99203729",
+    "appKind": "A",
+    "familyId": "19768124",
+    "pubCountry": "EP",
+    "pubDate": "20000517",
+    "pubDocNumber": "1000000",
+    "pubKind": "A1"
+  },
+  {
+    "appCountry": "US",
+    "appDate": "19981208",
+    "appDocNumber": "20685698",
+    "appKind": "A",
+    "familyId": "19768124",
+    "pubCountry": "US",
+    "pubDate": "20000725",
+    "pubDocNumber": "6093011",
+    "pubKind": "A"
+  }
+]

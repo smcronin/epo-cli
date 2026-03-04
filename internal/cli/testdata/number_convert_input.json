@@ -1,0 +1,40 @@
+{
+  "ops:world-patent-data": {
+    "ops:standardization": {
+      "@inputFormat": "docdb",
+      "@outputFormat": "epodoc",
+      "ops:input": {
+        "ops:publication-reference": {
+          "document-id": {
+            "@document-id-type": "docdb",
+            "country": {
+              "$": "EP"
+            },
+            "doc-number": {
+              "$": "1000000"
+            },
+            "kind": {
+              "$": "A1"
+            }
+          }
+        }
+      },
+      "ops:output": {
+        "ops:publication-reference": {
+          "document-id": {
+            "@document-id-type": "epodoc",
+            "date": {
+              "$": "20000517"
+            },
+            "doc-number": {
+              "$": "EP1000000"
+            },
+            "kind": {
+              "$": "A1"
+            }
+          }
+        }
+      }
+    }
+  }
+}

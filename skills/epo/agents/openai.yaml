@@ -1,0 +1,4 @@
+interface:
+  display_name: "EPO OPS CLI"
+  short_description: "Query EPO OPS patent data from the terminal"
+  default_prompt: "Use $epo to find EPO OPS patent data and return structured JSON output."

@@ -1,0 +1,18 @@
+[
+  {
+    "country": "US",
+    "docNumber": "12563169",
+    "documentIdType": "docdb",
+    "familyId": "98866456",
+    "kind": "B1",
+    "system": "ops.epo.org"
+  },
+  {
+    "country": "US",
+    "docNumber": "12561319",
+    "documentIdType": "docdb",
+    "familyId": "98866381",
+    "kind": "B1",
+    "system": "ops.epo.org"
+  }
+]
