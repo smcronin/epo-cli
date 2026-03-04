@@ -59,7 +59,13 @@ epo pub biblio EP1000000.A1
 epo family get EP.1000000.A1
 
 # Full text search
-epo pub search --q "applicant=IBM"
+epo pub search --query "applicant=IBM" --range 1-25
+
+# Search all pages sorted by newest publication date
+epo pub search --query "applicant=\"SAP SE\" and pd>=2024" --all --sort pub-date-desc --flat
+
+# Agent-friendly table shortcut
+epo pub search --query "applicant=IBM" --all --table
 
 # Claims
 epo pub claims EP1000000.A1
@@ -90,3 +96,26 @@ See [Examples](examples/) for real-world usage patterns.
 - [Number Formats](docs/guides/number-formats.md)
 - [CQL Search Syntax](docs/guides/cql-search.md)
 - [Services Reference](docs/api-reference/services.md)
+
+## Agent Eval Runner
+
+Run full agent-UAT prompts through `frix-agent` headless mode:
+
+```bash
+python tests/agent-prompts/eval_runner.py
+python tests/agent-prompts/eval_runner.py --prompts 1,3,10
+```
+
+Preflight requirements:
+
+- `epo` must be installed on PATH
+- EPO credentials must be configured (`epo config show` -> `configured: true`)
+- `frix-agent` repo available at `C:\Users\sethc\dev\frix-agent`
+
+Prompt suite details: [tests/agent-prompts/README.md](tests/agent-prompts/README.md)
+
+Quick local sanity evaluator (non-headless) is still available:
+
+```bash
+go run ./tools/eval --json-out .tmp/eval/report.json
+```

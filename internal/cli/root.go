@@ -24,6 +24,9 @@ var (
 	flagMinify       bool
 	flagQuiet        bool
 	flagTimeout      int
+	flagAll          bool
+	flagPick         string
+	flagStdin        bool
 )
 
 type successEnvelope struct {
@@ -72,6 +75,9 @@ func init() {
 	pf.BoolVar(&flagMinify, "minify", false, "Compact JSON output")
 	pf.BoolVarP(&flagQuiet, "quiet", "q", false, "Suppress non-data output")
 	pf.IntVar(&flagTimeout, "timeout", 30, "Request timeout in seconds")
+	pf.BoolVar(&flagAll, "all", false, "Auto-paginate all results where supported")
+	pf.StringVar(&flagPick, "pick", "", "Project output fields (comma-separated, dot paths supported)")
+	pf.BoolVar(&flagStdin, "stdin", false, "Read batch inputs from stdin (newline-separated)")
 
 	rootCmd.AddCommand(newConfigCmd())
 	rootCmd.AddCommand(newAuthCmd())
@@ -132,6 +138,7 @@ func buildSuccessEnvelope(cmd *cobra.Command, data any) successEnvelope {
 	} else {
 		env.Results = data
 	}
+	env.Results = applyPickProjection(env.Results)
 	return env
 }
 
@@ -156,12 +163,19 @@ func writeTable(v any) error {
 	switch data := v.(type) {
 	case string:
 		fmt.Fprintln(os.Stdout, data)
+	case successEnvelope:
+		return writeTableEnvelope(data)
 	default:
-		b, err := json.MarshalIndent(data, "", "  ")
-		if err != nil {
-			return fmt.Errorf("marshal table fallback: %w", err)
+		rows, ok := normalizeRows(data)
+		if !ok || len(rows) == 0 {
+			b, err := json.MarshalIndent(data, "", "  ")
+			if err != nil {
+				return fmt.Errorf("marshal table fallback: %w", err)
+			}
+			fmt.Fprintln(os.Stdout, string(b))
+			return nil
 		}
-		fmt.Fprintln(os.Stdout, string(b))
+		writeSimpleTable(os.Stdout, rows)
 	}
 	return nil
 }
@@ -292,6 +306,41 @@ func extractSearchRows(root map[string]any) ([]map[string]any, bool) {
 	worldPatentData := asAnyMap(root["ops:world-patent-data"])
 	biblioSearch := asAnyMap(worldPatentData["ops:biblio-search"])
 	searchResult := asAnyMap(biblioSearch["ops:search-result"])
+
+	if exchangeDocsRaw, ok := searchResult["exchange-documents"]; ok {
+		rawRows, ok := asAnySlice(exchangeDocsRaw)
+		if !ok {
+			if one, ok := exchangeDocsRaw.(map[string]any); ok {
+				rawRows = []any{one}
+			}
+		}
+		if len(rawRows) > 0 {
+			rows := make([]map[string]any, 0, len(rawRows))
+			for _, rawRow := range rawRows {
+				row := flattenPublishedSearchItem(rawRow)
+				rows = append(rows, row)
+			}
+			return rows, true
+		}
+	}
+
+	if exchangeDocRaw, ok := searchResult["exchange-document"]; ok {
+		rawRows, ok := asAnySlice(exchangeDocRaw)
+		if !ok {
+			if one, ok := exchangeDocRaw.(map[string]any); ok {
+				rawRows = []any{one}
+			}
+		}
+		if len(rawRows) > 0 {
+			rows := make([]map[string]any, 0, len(rawRows))
+			for _, rawRow := range rawRows {
+				row := flattenPublishedSearchItem(rawRow)
+				rows = append(rows, row)
+			}
+			return rows, true
+		}
+	}
+
 	publicationRefs, ok := searchResult["ops:publication-reference"]
 	if !ok {
 		return nil, false
@@ -319,6 +368,7 @@ func extractSearchRows(root map[string]any) ([]map[string]any, bool) {
 		row["country"] = asAnyMap(documentID["country"])["$"]
 		row["docNumber"] = asAnyMap(documentID["doc-number"])["$"]
 		row["kind"] = asAnyMap(documentID["kind"])["$"]
+		row["pubDate"] = asAnyMap(documentID["date"])["$"]
 		rows = append(rows, row)
 	}
 	return rows, len(rows) > 0

@@ -150,6 +150,10 @@
       {
         "name": "--constituents",
         "default": "biblio"
+      },
+      {
+        "name": "--stdin",
+        "description": "Read multiple references from stdin"
       }
     ],
     "args": [
@@ -178,6 +182,10 @@
       {
         "name": "--input-format",
         "default": "epodoc"
+      },
+      {
+        "name": "--stdin",
+        "description": "Read multiple references from stdin"
       }
     ],
     "args": [
@@ -193,6 +201,37 @@
     ]
   },
   {
+    "command": "epo pub fulltext",
+    "service": "published-data",
+    "implemented": true,
+    "summary": "Retrieve fulltext availability inquiry",
+    "optionalFlags": [
+      {
+        "name": "--ref-type",
+        "default": "publication"
+      },
+      {
+        "name": "--input-format",
+        "default": "epodoc"
+      },
+      {
+        "name": "--stdin",
+        "description": "Read multiple references from stdin"
+      }
+    ],
+    "args": [
+      {
+        "name": "reference",
+        "required": true,
+        "example": "EP1000000"
+      }
+    ],
+    "outputShapeHint": "Published-data envelope with fulltext inquiry payload",
+    "examples": [
+      "epo pub fulltext EP1000000 -f json -q"
+    ]
+  },
+  {
     "command": "epo pub claims",
     "service": "published-data",
     "implemented": true,
@@ -205,6 +244,10 @@
       {
         "name": "--input-format",
         "default": "epodoc"
+      },
+      {
+        "name": "--stdin",
+        "description": "Read multiple references from stdin"
       }
     ],
     "args": [
@@ -232,6 +275,10 @@
       {
         "name": "--input-format",
         "default": "epodoc"
+      },
+      {
+        "name": "--stdin",
+        "description": "Read multiple references from stdin"
       }
     ],
     "args": [
@@ -263,6 +310,10 @@
       {
         "name": "--constituents",
         "description": "abstract, biblio, biblio,full-cycle, images"
+      },
+      {
+        "name": "--stdin",
+        "description": "Read multiple references from stdin"
       }
     ],
     "args": [
@@ -284,12 +335,20 @@
     "summary": "Run CQL search over published-data",
     "requiredFlags": [
       {
-        "name": "--q",
+        "name": "--query",
         "required": true,
         "description": "CQL expression"
       }
     ],
     "optionalFlags": [
+      {
+        "name": "--cql",
+        "description": "Alias for --query"
+      },
+      {
+        "name": "--q",
+        "description": "Deprecated alias for --query"
+      },
       {
         "name": "--range",
         "description": "Result range header (example 1-25)"
@@ -301,11 +360,112 @@
       {
         "name": "--post",
         "description": "Use POST body instead of GET query"
+      },
+      {
+        "name": "--all",
+        "description": "Auto-paginate all results"
+      },
+      {
+        "name": "--sort",
+        "description": "Sort results by publication date (pub-date-asc|pub-date-desc)"
+      },
+      {
+        "name": "--stdin",
+        "description": "Read one query per stdin line"
+      },
+      {
+        "name": "--flat",
+        "description": "Flatten search results to top-level fields"
+      },
+      {
+        "name": "--table",
+        "description": "Shortcut for --format table --flat with default fields"
+      },
+      {
+        "name": "--pick",
+        "description": "Project selected fields in output"
       }
     ],
     "outputShapeHint": "Published-data envelope with search result set and pagination",
     "examples": [
-      "epo pub search --q \"applicant=IBM\" --range 1-25 -f json -q"
+      "epo pub search --query \"applicant=IBM\" --range 1-25 -f json -q",
+      "epo pub search --query \"applicant=IBM\" --all --sort pub-date-desc --flat -f json -q",
+      "epo pub search --query \"applicant=IBM\" --all --table",
+      "echo \"applicant=IBM\" | epo pub search --stdin --all --table"
+    ]
+  },
+  {
+    "command": "epo pub images inquiry",
+    "service": "published-data",
+    "implemented": true,
+    "summary": "List available image links for a publication reference",
+    "optionalFlags": [
+      {
+        "name": "--ref-type",
+        "default": "publication"
+      },
+      {
+        "name": "--input-format",
+        "default": "epodoc"
+      },
+      {
+        "name": "--stdin",
+        "description": "Read multiple references from stdin"
+      }
+    ],
+    "args": [
+      {
+        "name": "reference",
+        "required": true,
+        "example": "EP1000000.A1"
+      }
+    ],
+    "outputShapeHint": "Published-data envelope with document-instance links",
+    "examples": [
+      "epo pub images inquiry EP1000000.A1 -f json -q"
+    ]
+  },
+  {
+    "command": "epo pub images fetch",
+    "service": "published-data",
+    "implemented": true,
+    "summary": "Fetch image/document content from an inquiry link path",
+    "optionalFlags": [
+      {
+        "name": "--accept",
+        "default": "application/pdf"
+      },
+      {
+        "name": "--range",
+        "description": "Single page selector for fullimage/tiff"
+      },
+      {
+        "name": "--from",
+        "description": "Source system (From)"
+      },
+      {
+        "name": "--out",
+        "description": "Write binary output to file"
+      },
+      {
+        "name": "--include-body",
+        "description": "Include base64 response body"
+      },
+      {
+        "name": "--stdin",
+        "description": "Read multiple link paths from stdin"
+      }
+    ],
+    "args": [
+      {
+        "name": "link-path",
+        "required": true,
+        "example": "EP/1000000/A1/thumbnail"
+      }
+    ],
+    "outputShapeHint": "Content metadata (type/bytes/hash) and optional body/file path",
+    "examples": [
+      "epo pub images fetch EP/1000000/A1/thumbnail --accept image/png -f json -q"
     ]
   },
   {
@@ -335,6 +495,10 @@
       {
         "name": "--constituents",
         "description": "biblio, legal, or biblio,legal"
+      },
+      {
+        "name": "--stdin",
+        "description": "Read multiple references from stdin"
       }
     ],
     "args": [
@@ -366,6 +530,10 @@
       {
         "name": "--to-format",
         "default": "epodoc"
+      },
+      {
+        "name": "--stdin",
+        "description": "Read multiple references from stdin"
       }
     ],
     "args": [
@@ -389,6 +557,10 @@
       {
         "name": "--constituents",
         "description": "biblio,events,procedural-steps"
+      },
+      {
+        "name": "--stdin",
+        "description": "Read multiple references from stdin"
       }
     ],
     "args": [
@@ -409,6 +581,12 @@
     "service": "register",
     "implemented": true,
     "summary": "Fetch register events endpoint",
+    "optionalFlags": [
+      {
+        "name": "--stdin",
+        "description": "Read multiple references from stdin"
+      }
+    ],
     "args": [
       {
         "name": "reference",
@@ -426,6 +604,12 @@
     "service": "register",
     "implemented": true,
     "summary": "Fetch register procedural steps endpoint",
+    "optionalFlags": [
+      {
+        "name": "--stdin",
+        "description": "Read multiple references from stdin"
+      }
+    ],
     "args": [
       {
         "name": "reference",
@@ -443,6 +627,12 @@
     "service": "register",
     "implemented": true,
     "summary": "Fetch unitary patent protection endpoint",
+    "optionalFlags": [
+      {
+        "name": "--stdin",
+        "description": "Read multiple references from stdin"
+      }
+    ],
     "args": [
       {
         "name": "reference",
@@ -475,6 +665,18 @@
       {
         "name": "--post",
         "description": "Use POST body instead of GET query"
+      },
+      {
+        "name": "--all",
+        "description": "Auto-paginate all results"
+      },
+      {
+        "name": "--stdin",
+        "description": "Read one query per stdin line"
+      },
+      {
+        "name": "--pick",
+        "description": "Project selected fields in output"
       }
     ],
     "outputShapeHint": "Register envelope with search results",
@@ -495,6 +697,10 @@
       {
         "name": "--input-format",
         "default": "docdb"
+      },
+      {
+        "name": "--stdin",
+        "description": "Read multiple references from stdin"
       }
     ],
     "args": [

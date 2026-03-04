@@ -152,6 +152,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 				{Name: "--ref-type", Default: "publication"},
 				{Name: "--input-format", Default: "epodoc"},
 				{Name: "--constituents", Default: "biblio"},
+				{Name: "--stdin", Description: "Read multiple references from stdin"},
 			},
 			OutputShapeHint: "Published-data envelope with throttle, quota, and JSON results",
 			Examples: []string{
@@ -169,10 +170,29 @@ func buildMethodCatalog() []methodCatalogEntry {
 			OptionalFlags: []methodFlag{
 				{Name: "--ref-type", Default: "publication"},
 				{Name: "--input-format", Default: "epodoc"},
+				{Name: "--stdin", Description: "Read multiple references from stdin"},
 			},
 			OutputShapeHint: "Published-data envelope with abstract payload",
 			Examples: []string{
 				"epo pub abstract EP1000000.A1 -f json -q",
+			},
+		},
+		{
+			Command:     "epo pub fulltext",
+			Service:     "published-data",
+			Implemented: true,
+			Summary:     "Retrieve fulltext availability inquiry",
+			Args: []methodArg{
+				{Name: "reference", Required: true, Example: "EP1000000"},
+			},
+			OptionalFlags: []methodFlag{
+				{Name: "--ref-type", Default: "publication"},
+				{Name: "--input-format", Default: "epodoc"},
+				{Name: "--stdin", Description: "Read multiple references from stdin"},
+			},
+			OutputShapeHint: "Published-data envelope with fulltext inquiry payload",
+			Examples: []string{
+				"epo pub fulltext EP1000000 -f json -q",
 			},
 		},
 		{
@@ -186,6 +206,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 			OptionalFlags: []methodFlag{
 				{Name: "--ref-type", Default: "publication"},
 				{Name: "--input-format", Default: "epodoc"},
+				{Name: "--stdin", Description: "Read multiple references from stdin"},
 			},
 			OutputShapeHint: "Published-data envelope with claims payload",
 			Examples: []string{
@@ -203,6 +224,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 			OptionalFlags: []methodFlag{
 				{Name: "--ref-type", Default: "publication"},
 				{Name: "--input-format", Default: "epodoc"},
+				{Name: "--stdin", Description: "Read multiple references from stdin"},
 			},
 			OutputShapeHint: "Published-data envelope with description payload",
 			Examples: []string{
@@ -221,6 +243,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 				{Name: "--ref-type", Default: "publication"},
 				{Name: "--input-format", Default: "epodoc"},
 				{Name: "--constituents", Description: "abstract, biblio, biblio,full-cycle, images"},
+				{Name: "--stdin", Description: "Read multiple references from stdin"},
 			},
 			OutputShapeHint: "Published-data envelope with equivalents payload",
 			Examples: []string{
@@ -233,16 +256,66 @@ func buildMethodCatalog() []methodCatalogEntry {
 			Implemented: true,
 			Summary:     "Run CQL search over published-data",
 			RequiredFlags: []methodFlag{
-				{Name: "--q", Required: true, Description: "CQL expression"},
+				{Name: "--query", Required: true, Description: "CQL expression"},
 			},
 			OptionalFlags: []methodFlag{
+				{Name: "--cql", Description: "Alias for --query"},
+				{Name: "--q", Description: "Deprecated alias for --query"},
 				{Name: "--range", Description: "Result range header (example 1-25)"},
 				{Name: "--constituents", Description: "biblio,abstract,full-cycle"},
 				{Name: "--post", Description: "Use POST body instead of GET query"},
+				{Name: "--all", Description: "Auto-paginate all results"},
+				{Name: "--sort", Description: "Sort results by publication date (pub-date-asc|pub-date-desc)"},
+				{Name: "--stdin", Description: "Read one query per stdin line"},
+				{Name: "--flat", Description: "Flatten search results to top-level fields"},
+				{Name: "--table", Description: "Shortcut for --format table --flat with default fields"},
+				{Name: "--pick", Description: "Project selected fields in output"},
 			},
 			OutputShapeHint: "Published-data envelope with search result set and pagination",
 			Examples: []string{
-				"epo pub search --q \"applicant=IBM\" --range 1-25 -f json -q",
+				"epo pub search --query \"applicant=IBM\" --range 1-25 -f json -q",
+				"epo pub search --query \"applicant=IBM\" --all --sort pub-date-desc --flat -f json -q",
+				"epo pub search --query \"applicant=IBM\" --all --table",
+				"echo \"applicant=IBM\" | epo pub search --stdin --all --table",
+			},
+		},
+		{
+			Command:     "epo pub images inquiry",
+			Service:     "published-data",
+			Implemented: true,
+			Summary:     "List available image links for a publication reference",
+			Args: []methodArg{
+				{Name: "reference", Required: true, Example: "EP1000000.A1"},
+			},
+			OptionalFlags: []methodFlag{
+				{Name: "--ref-type", Default: "publication"},
+				{Name: "--input-format", Default: "epodoc"},
+				{Name: "--stdin", Description: "Read multiple references from stdin"},
+			},
+			OutputShapeHint: "Published-data envelope with document-instance links",
+			Examples: []string{
+				"epo pub images inquiry EP1000000.A1 -f json -q",
+			},
+		},
+		{
+			Command:     "epo pub images fetch",
+			Service:     "published-data",
+			Implemented: true,
+			Summary:     "Fetch image/document content from an inquiry link path",
+			Args: []methodArg{
+				{Name: "link-path", Required: true, Example: "EP/1000000/A1/thumbnail"},
+			},
+			OptionalFlags: []methodFlag{
+				{Name: "--accept", Default: "application/pdf"},
+				{Name: "--range", Description: "Single page selector for fullimage/tiff"},
+				{Name: "--from", Description: "Source system (From)"},
+				{Name: "--out", Description: "Write binary output to file"},
+				{Name: "--include-body", Description: "Include base64 response body"},
+				{Name: "--stdin", Description: "Read multiple link paths from stdin"},
+			},
+			OutputShapeHint: "Content metadata (type/bytes/hash) and optional body/file path",
+			Examples: []string{
+				"epo pub images fetch EP/1000000/A1/thumbnail --accept image/png -f json -q",
 			},
 		},
 		{
@@ -267,6 +340,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 				{Name: "--ref-type", Default: "publication"},
 				{Name: "--input-format", Default: "docdb"},
 				{Name: "--constituents", Description: "biblio, legal, or biblio,legal"},
+				{Name: "--stdin", Description: "Read multiple references from stdin"},
 			},
 			OutputShapeHint: "Family envelope with member documents and optional biblio/legal payload",
 			Examples: []string{
@@ -285,6 +359,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 				{Name: "--ref-type", Default: "application"},
 				{Name: "--from-format", Default: "docdb"},
 				{Name: "--to-format", Default: "epodoc"},
+				{Name: "--stdin", Description: "Read multiple references from stdin"},
 			},
 			OutputShapeHint: "Number-service envelope with converted reference formats",
 			Examples: []string{
@@ -301,6 +376,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 			},
 			OptionalFlags: []methodFlag{
 				{Name: "--constituents", Description: "biblio,events,procedural-steps"},
+				{Name: "--stdin", Description: "Read multiple references from stdin"},
 			},
 			OutputShapeHint: "Register envelope with dossier payload",
 			Examples: []string{
@@ -317,6 +393,9 @@ func buildMethodCatalog() []methodCatalogEntry {
 				{Name: "reference", Required: true, Example: "EP99203729"},
 			},
 			OutputShapeHint: "Register envelope with event list",
+			OptionalFlags: []methodFlag{
+				{Name: "--stdin", Description: "Read multiple references from stdin"},
+			},
 			Examples: []string{
 				"epo register events EP99203729 -f json -q",
 			},
@@ -330,6 +409,9 @@ func buildMethodCatalog() []methodCatalogEntry {
 				{Name: "reference", Required: true, Example: "EP99203729"},
 			},
 			OutputShapeHint: "Register envelope with procedural steps",
+			OptionalFlags: []methodFlag{
+				{Name: "--stdin", Description: "Read multiple references from stdin"},
+			},
 			Examples: []string{
 				"epo register procedural-steps EP99203729 -f json -q",
 			},
@@ -343,6 +425,9 @@ func buildMethodCatalog() []methodCatalogEntry {
 				{Name: "reference", Required: true, Example: "EP99203729"},
 			},
 			OutputShapeHint: "Register envelope with UPP payload",
+			OptionalFlags: []methodFlag{
+				{Name: "--stdin", Description: "Read multiple references from stdin"},
+			},
 			Examples: []string{
 				"epo register upp EP99203729 -f json -q",
 			},
@@ -358,6 +443,9 @@ func buildMethodCatalog() []methodCatalogEntry {
 			OptionalFlags: []methodFlag{
 				{Name: "--range", Description: "Result range header (example 1-25)"},
 				{Name: "--post", Description: "Use POST body instead of GET query"},
+				{Name: "--all", Description: "Auto-paginate all results"},
+				{Name: "--stdin", Description: "Read one query per stdin line"},
+				{Name: "--pick", Description: "Project selected fields in output"},
 			},
 			OutputShapeHint: "Register envelope with search results",
 			Examples: []string{
@@ -375,6 +463,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 			OptionalFlags: []methodFlag{
 				{Name: "--ref-type", Default: "publication"},
 				{Name: "--input-format", Default: "docdb"},
+				{Name: "--stdin", Description: "Read multiple references from stdin"},
 			},
 			OutputShapeHint: "Legal envelope with INPADOC events",
 			Examples: []string{

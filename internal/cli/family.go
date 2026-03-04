@@ -29,16 +29,8 @@ func newFamilyGetCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "get <reference>",
 		Short: "Fetch INPADOC family data for a reference",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			reference := strings.TrimSpace(args[0])
-			if reference == "" {
-				return &epoerrors.CLIError{
-					Code:    400,
-					Type:    "VALIDATION_ERROR",
-					Message: "reference is required",
-				}
-			}
 			if !isOneOf(refType, "publication", "application", "priority") {
 				return &epoerrors.CLIError{
 					Code:    400,
@@ -64,25 +56,26 @@ func newFamilyGetCmd() *cobra.Command {
 				}
 			}
 
-			path := fmt.Sprintf("/family/%s/%s/%s", refType, inputFormat, reference)
-			if v := strings.TrimSpace(constituents); v != "" {
-				path += "/" + v
-			}
-			request := api.Request{
-				Method: http.MethodGet,
-				Path:   path,
-				Accept: "application/json",
-			}
-			requestMeta := map[string]any{
-				"method": request.Method,
-				"path":   request.Path,
-			}
-
-			resp, err := executeOPSRequest(cmd.Context(), request)
+			references, err := resolveSingleOrStdinInputs(args)
 			if err != nil {
 				return err
 			}
-			return outputOPSResponse(cmd, "family", requestMeta, resp, nil)
+			return runOPSBatch(cmd, "family", references, func(reference string) (api.Request, map[string]any, error) {
+				path := fmt.Sprintf("/family/%s/%s/%s", refType, inputFormat, reference)
+				if v := strings.TrimSpace(constituents); v != "" {
+					path += "/" + v
+				}
+				request := api.Request{
+					Method: http.MethodGet,
+					Path:   path,
+					Accept: "application/json",
+				}
+				requestMeta := map[string]any{
+					"method": request.Method,
+					"path":   request.Path,
+				}
+				return request, requestMeta, nil
+			}, nil)
 		},
 	}
 
