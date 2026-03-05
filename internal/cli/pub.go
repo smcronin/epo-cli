@@ -631,14 +631,14 @@ func runPubBiblioFlat(cmd *cobra.Command, references []string, refType, inputFor
 
 func flattenBiblioPayload(v any) []map[string]any {
 	if items, ok := extractPublishedSearchItems(v); ok && len(items) > 0 {
-		return flattenPublishedSearchItems(items)
+		return dedupeFlatPublicationRows(flattenPublishedSearchItems(items))
 	}
 	items := []any{}
 	collectExchangeDocuments(v, &items)
 	if len(items) == 0 {
 		return nil
 	}
-	return flattenPublishedSearchItems(items)
+	return dedupeFlatPublicationRows(flattenPublishedSearchItems(items))
 }
 
 func collectExchangeDocuments(v any, out *[]any) {
@@ -1245,6 +1245,12 @@ func resolvePubInputFormat(reference, requested string) string {
 		if looksDocdbPublicationReference(reference) {
 			return "docdb"
 		}
+		if _, ok := epodocKindToDocdb(reference); ok {
+			return "docdb"
+		}
+		if _, ok := epodocDottedKindToDocdb(reference); ok {
+			return "docdb"
+		}
 		return "epodoc"
 	}
 	return requested
@@ -1698,7 +1704,7 @@ func stripMixedLayoutNodes(v any) any {
 	case map[string]any:
 		out := map[string]any{}
 		for key, value := range t {
-			if key == "mixed.layout" {
+			if key == "mixed.layout" || key == "@mixed.layout" || localXMLKey(key) == "mixed.layout" {
 				continue
 			}
 			out[key] = stripMixedLayoutNodes(value)
@@ -1713,6 +1719,29 @@ func stripMixedLayoutNodes(v any) any {
 	default:
 		return v
 	}
+}
+
+func dedupeFlatPublicationRows(rows []map[string]any) []map[string]any {
+	if len(rows) < 2 {
+		return rows
+	}
+	seen := map[string]struct{}{}
+	out := make([]map[string]any, 0, len(rows))
+	for _, row := range rows {
+		reference := strings.TrimSpace(textValue(row["reference"]))
+		doc := strings.TrimSpace(textValue(row["docNumber"]))
+		kind := strings.TrimSpace(textValue(row["kind"]))
+		country := strings.TrimSpace(textValue(row["country"]))
+		title := strings.TrimSpace(textValue(row["title"]))
+		pubDate := strings.TrimSpace(textValue(row["pubDate"]))
+		key := strings.ToUpper(firstNonEmpty(reference, country+doc+kind)) + "|" + pubDate + "|" + strings.ToUpper(title)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, row)
+	}
+	return out
 }
 
 func parseSearchPagination(results any) map[string]any {

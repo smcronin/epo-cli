@@ -31,9 +31,12 @@ Use this with `tests/agent-prompts/eval_runner.py`, which runs each prompt throu
 ## Running
 
 ```bash
+export FRIX_ROOT=/path/to/frix-agent
 python tests/agent-prompts/eval_runner.py
 python tests/agent-prompts/eval_runner.py --prompts 1,3,10
 python tests/agent-prompts/eval_runner.py --dry-run
+# or explicitly:
+python tests/agent-prompts/eval_runner.py --frix-root /path/to/frix-agent
 ```
 
 Output:
@@ -42,3 +45,6 @@ Output:
 - `tests/agent-prompts/results/eval_summary.json`
 - `tests/agent-prompts/results/logs/prompt01.log` ... `prompt10.log`
 
+Notes:
+
+- `results/` and `workspaces/` are intentionally git-ignored local artifacts.

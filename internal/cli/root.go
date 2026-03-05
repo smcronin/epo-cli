@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"time"
 
 	epoerrors "github.com/smcronin/epo-cli/internal/errors"
 	"github.com/spf13/cobra"
@@ -60,8 +61,8 @@ type responsePayload struct {
 
 var rootCmd = &cobra.Command{
 	Use:           "epo",
-	Short:         "EPO OPS CLI - agent-ready access to patent data",
-	Long:          "EPO OPS CLI - agent-ready access to EPO Open Patent Services (OPS) data.",
+	Short:         "EPO patent CLI for OPS and EPS data access",
+	Long:          "EPO patent CLI for agent-ready access to Open Patent Services (OPS) and European Publication Server (EPS) data.",
 	Version:       version,
 	SilenceUsage:  true,
 	SilenceErrors: true,
@@ -89,6 +90,7 @@ func init() {
 	rootCmd.AddCommand(newStatusCmd())
 	rootCmd.AddCommand(newCPCCmd())
 	rootCmd.AddCommand(newUsageCmd())
+	rootCmd.AddCommand(newEPSCmd())
 	rootCmd.AddCommand(newRawCmd())
 	rootCmd.AddCommand(newUpdateCmd())
 	rootCmd.AddCommand(newMethodsCmd())
@@ -639,21 +641,28 @@ func flattenUsageEnvironment(env map[string]any, notices []string) []map[string]
 				continue
 			}
 
-			points, pointsOK := asAnySlice(metric["points"])
-			if !pointsOK {
+			points := asAnySliceOrSingleton(metric["points"])
+			if len(points) == 0 {
+				points = asAnySliceOrSingleton(metric["values"])
+			}
+			if len(points) == 0 {
 				points = []any{metric}
 			}
 			for _, rawPoint := range points {
 				point := asAnyMap(rawPoint)
-				date := firstNonEmpty(
-					textValue(point["date"]),
-					textValue(point["timestamp"]),
-					textValue(point["day"]),
-				)
+				date := firstNonEmpty(textValue(point["date"]), textValue(point["day"]))
+				if date == "" {
+					if epoch := toEpochInt(point["timestamp"]); epoch > 0 {
+						date = time.Unix(epoch, 0).UTC().Format("2006-01-02")
+					} else {
+						date = textValue(point["timestamp"])
+					}
+				}
 				value := firstNonEmpty(
 					textValue(point["value"]),
 					textValue(point["count"]),
 					textValue(point["total"]),
+					textValue(point["amount"]),
 				)
 				if date == "" && value == "" {
 					continue

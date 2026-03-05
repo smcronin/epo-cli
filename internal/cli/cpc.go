@@ -330,16 +330,14 @@ func outputCPCResponse(cmd *cobra.Command, requestMeta map[string]any, resp api.
 		return outputOPSResponse(cmd, "classification/cpc", requestMeta, resp, nil)
 	}
 
-	results, warnings := parseJSONBody(resp.Body)
-	normalized := normalizeCPCPayload(mode, symbol, from, to, resp.Body)
+	parsed, warnings := parseJSONBody(resp.Body)
+	normalized := normalizeCPCPayload(mode, symbol, from, to, parsed, resp.Body)
+	warningsOut := append([]string{}, warnings...)
 	if len(normalized) == 0 {
 		normalized = []map[string]any{
 			{"warning": "No structured CPC rows extracted from response"},
 		}
-	}
-	warningsOut := append([]string{}, warnings...)
-	if results != nil {
-		warningsOut = append(warningsOut, "Raw XML body parsed; use --format json without --normalize to inspect full payload.")
+		warningsOut = append(warningsOut, "Use --format json without --normalize to inspect full payload.")
 	}
 	return outputSuccess(cmd, responsePayload{
 		Service: "classification/cpc",
@@ -358,7 +356,21 @@ func outputCPCResponse(cmd *cobra.Command, requestMeta map[string]any, resp api.
 	})
 }
 
-func normalizeCPCPayload(mode, symbol, from, to string, body []byte) []map[string]any {
+func normalizeCPCPayload(mode, symbol, from, to string, parsed any, body []byte) []map[string]any {
+	var rows []map[string]any
+	switch mode {
+	case "map":
+		rows = extractCPCMapRowsFromParsed(parsed, symbol, from, to)
+	case "search":
+		rows = extractCPCSearchRowsFromParsed(parsed)
+	default:
+		rows = extractCPCGetRowsFromParsed(parsed)
+	}
+	if len(rows) > 0 {
+		return rows
+	}
+
+	// Fallback to direct XML extraction for minimal structures.
 	symbols := extractXMLValuesByLocalName(body, "classification-symbol")
 	if len(symbols) == 0 {
 		symbols = extractXMLValuesByLocalName(body, "symbol")
@@ -380,6 +392,239 @@ func normalizeCPCPayload(mode, symbol, from, to string, body []byte) []map[strin
 	default:
 		return buildCPCGetRows(symbols, titles)
 	}
+}
+
+func extractCPCWorldPatentData(parsed any) map[string]any {
+	root := asAnyMap(parsed)
+	if len(root) == 0 {
+		return map[string]any{}
+	}
+	for _, key := range []string{"world-patent-data", "ops:world-patent-data"} {
+		if world := asAnyMap(root[key]); len(world) > 0 {
+			return world
+		}
+	}
+	return map[string]any{}
+}
+
+func asAnySliceOrSingleton(v any) []any {
+	if items, ok := asAnySlice(v); ok {
+		return items
+	}
+	if m := asAnyMap(v); len(m) > 0 {
+		return []any{m}
+	}
+	return nil
+}
+
+func cpcTextFromNode(v any) string {
+	switch t := v.(type) {
+	case nil:
+		return ""
+	case string:
+		return strings.TrimSpace(t)
+	case map[string]any:
+		if direct := textValue(t["$"]); direct != "" {
+			return direct
+		}
+		if text := cpcTextFromNode(t["text"]); text != "" {
+			return text
+		}
+		if text := cpcTextFromNode(t["comment"]); text != "" {
+			return text
+		}
+		if text := cpcTextFromNode(t["title-part"]); text != "" {
+			return text
+		}
+		for _, child := range t {
+			if text := cpcTextFromNode(child); text != "" {
+				return text
+			}
+		}
+	case []any:
+		for _, child := range t {
+			if text := cpcTextFromNode(child); text != "" {
+				return text
+			}
+		}
+	}
+	return ""
+}
+
+func extractCPCSearchRowsFromParsed(parsed any) []map[string]any {
+	world := extractCPCWorldPatentData(parsed)
+	if len(world) == 0 {
+		return nil
+	}
+	search := asAnyMap(world["classification-search"])
+	if len(search) == 0 {
+		search = asAnyMap(world["ops:classification-search"])
+	}
+	if len(search) == 0 {
+		return nil
+	}
+	searchResult := asAnyMap(search["search-result"])
+	if len(searchResult) == 0 {
+		searchResult = asAnyMap(search["ops:search-result"])
+	}
+	stats := asAnySliceOrSingleton(searchResult["classification-statistics"])
+	if len(stats) == 0 {
+		stats = asAnySliceOrSingleton(searchResult["ops:classification-statistics"])
+	}
+	if len(stats) == 0 {
+		return nil
+	}
+
+	rows := make([]map[string]any, 0, len(stats))
+	for _, raw := range stats {
+		stat := asAnyMap(raw)
+		if len(stat) == 0 {
+			continue
+		}
+		row := map[string]any{}
+		if symbol := firstNonEmpty(textValue(stat["@classification-symbol"]), textValue(stat["classification-symbol"])); symbol != "" {
+			row["symbol"] = symbol
+		}
+		if title := cpcTextFromNode(stat["class-title"]); title != "" {
+			row["title"] = title
+		}
+		percentageRaw := firstNonEmpty(textValue(stat["@percentage"]), textValue(stat["score"]), textValue(stat["relevance"]))
+		if percentageRaw != "" {
+			if f, err := strconv.ParseFloat(strings.TrimSpace(percentageRaw), 64); err == nil {
+				row["percentage"] = f
+			} else {
+				row["percentage"] = percentageRaw
+			}
+		}
+		if len(row) > 0 {
+			rows = append(rows, row)
+		}
+	}
+	return rows
+}
+
+func extractCPCGetRowsFromParsed(parsed any) []map[string]any {
+	world := extractCPCWorldPatentData(parsed)
+	if len(world) == 0 {
+		return nil
+	}
+	classificationScheme := asAnyMap(world["classification-scheme"])
+	if len(classificationScheme) == 0 {
+		classificationScheme = asAnyMap(world["ops:classification-scheme"])
+	}
+	if len(classificationScheme) == 0 {
+		return nil
+	}
+	cpc := asAnyMap(classificationScheme["cpc"])
+	classScheme := asAnyMap(cpc["class-scheme"])
+	rootItems := classScheme["classification-item"]
+	if len(asAnySliceOrSingleton(rootItems)) == 0 {
+		rootItems = classificationScheme["classification-item"]
+	}
+	items := asAnySliceOrSingleton(rootItems)
+	if len(items) == 0 {
+		return nil
+	}
+
+	rows := []map[string]any{}
+	seen := map[string]struct{}{}
+	var walk func(any)
+	walk = func(node any) {
+		for _, raw := range asAnySliceOrSingleton(node) {
+			item := asAnyMap(raw)
+			if len(item) == 0 {
+				continue
+			}
+			symbol := firstNonEmpty(
+				textValue(asAnyMap(item["classification-symbol"])["$"]),
+				textValue(item["@classification-symbol"]),
+				textValue(item["@sort-key"]),
+			)
+			title := cpcTextFromNode(item["class-title"])
+			if symbol != "" || title != "" {
+				key := strings.ToUpper(symbol) + "|" + title
+				if _, ok := seen[key]; !ok {
+					seen[key] = struct{}{}
+					row := map[string]any{}
+					if symbol != "" {
+						row["symbol"] = symbol
+					}
+					if title != "" {
+						row["title"] = title
+					}
+					rows = append(rows, row)
+				}
+			}
+			if child := item["classification-item"]; child != nil {
+				walk(child)
+			}
+		}
+	}
+	walk(items)
+	return rows
+}
+
+func extractCPCMapRowsFromParsed(parsed any, sourceSymbol, from, to string) []map[string]any {
+	world := extractCPCWorldPatentData(parsed)
+	if len(world) == 0 {
+		return nil
+	}
+	classificationScheme := asAnyMap(world["classification-scheme"])
+	if len(classificationScheme) == 0 {
+		classificationScheme = asAnyMap(world["ops:classification-scheme"])
+	}
+	mappings := asAnyMap(classificationScheme["mappings"])
+	if len(mappings) == 0 {
+		return nil
+	}
+	mappingItems := asAnySliceOrSingleton(mappings["mapping"])
+	if len(mappingItems) == 0 {
+		return nil
+	}
+
+	inScheme := firstNonEmpty(textValue(mappings["@inputSchema"]), strings.ToUpper(strings.TrimSpace(from)))
+	outScheme := firstNonEmpty(textValue(mappings["@outputSchema"]), strings.ToUpper(strings.TrimSpace(to)))
+	fromKey := strings.ToLower(strings.TrimSpace(from))
+	if fromKey == "" {
+		fromKey = strings.ToLower(inScheme)
+	}
+	toKey := strings.ToLower(strings.TrimSpace(to))
+	if toKey == "" {
+		toKey = strings.ToLower(outScheme)
+	}
+
+	rows := make([]map[string]any, 0, len(mappingItems))
+	seen := map[string]struct{}{}
+	for _, raw := range mappingItems {
+		item := asAnyMap(raw)
+		if len(item) == 0 {
+			continue
+		}
+		fromSymbol := firstNonEmpty(textValue(asAnyMap(item[fromKey])["$"]), strings.ToUpper(strings.TrimSpace(sourceSymbol)))
+		toSymbol := textValue(asAnyMap(item[toKey])["$"])
+		if toSymbol == "" {
+			toSymbol = firstNonEmpty(
+				textValue(item["@classification-symbol"]),
+				textValue(item["classification-symbol"]),
+			)
+		}
+		toSymbol = strings.TrimSpace(toSymbol)
+		if toSymbol == "" {
+			continue
+		}
+		key := strings.ToUpper(fromSymbol) + "|" + strings.ToUpper(toSymbol) + "|" + strings.ToUpper(inScheme) + "|" + strings.ToUpper(outScheme)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		rows = append(rows, map[string]any{
+			"from":       strings.ToUpper(strings.TrimSpace(fromSymbol)),
+			"fromScheme": strings.ToUpper(strings.TrimSpace(inScheme)),
+			"to":         strings.ToUpper(strings.TrimSpace(toSymbol)),
+			"toScheme":   strings.ToUpper(strings.TrimSpace(outScheme)),
+		})
+	}
+	return rows
 }
 
 func extractXMLValuesByLocalName(body []byte, localName string) []string {

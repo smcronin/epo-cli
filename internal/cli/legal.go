@@ -167,25 +167,114 @@ func collectLegalEvents(v any, out *[]map[string]any) {
 }
 
 func legalEventFromMap(m map[string]any) map[string]any {
-	hasCodeShape := false
-	for key := range m {
-		if legalCodePattern.MatchString(strings.TrimSpace(key)) {
-			hasCodeShape = true
-			break
-		}
-	}
-	if !hasCodeShape {
+	if !looksLikeLegalEventMap(m) {
 		return nil
 	}
 
+	date := firstNonEmpty(
+		textValue(m["@date"]),
+		textValue(m["date"]),
+		textValue(legalValueByLocalKey(m, "L007EP")),
+		textValue(legalValueByLocalKey(m, "L525EP")),
+	)
+	code := firstNonEmpty(
+		textValue(m["@code"]),
+		textValue(m["code"]),
+		textValue(legalValueByLocalKey(m, "L008EP")),
+		textValue(legalValueByLocalKey(m, "L501EP")),
+	)
+	description := firstNonEmpty(
+		textValue(m["@desc"]),
+		textValue(m["description"]),
+		textValue(m["desc"]),
+		textValue(legalValueByLocalKey(m, "L002EP")),
+		textValue(legalValueByLocalKey(m, "L502EP")),
+	)
+	country := firstNonEmpty(
+		textValue(m["country"]),
+		textValue(legalValueByLocalKey(m, "L001EP")),
+		textValue(legalValueByLocalKey(m, "L501EP")),
+	)
+	influence := firstNonEmpty(
+		textValue(m["@infl"]),
+		textValue(m["influence"]),
+	)
+
 	row := map[string]any{
-		"date":        firstNonEmpty(textValue(m["date"]), textValue(m["L007EP"]), textValue(m["L500EP"]), textValue(m["L515EP"])),
-		"code":        firstNonEmpty(textValue(m["code"]), textValue(m["L001EP"]), textValue(m["L501EP"])),
-		"description": firstNonEmpty(textValue(m["description"]), textValue(m["desc"]), textValue(m["L002EP"]), textValue(m["L502EP"])),
-		"country":     firstNonEmpty(textValue(m["country"]), textValue(m["L003EP"])),
-		"influence":   firstNonEmpty(textValue(m["influence"]), textValue(m["L004EP"])),
+		"date":        date,
+		"code":        strings.TrimSpace(code),
+		"description": strings.TrimSpace(description),
+		"country":     strings.TrimSpace(country),
+		"influence":   strings.TrimSpace(influence),
+	}
+	if text := textValue(legalValueByLocalKey(m, "L003EP")); text != "" {
+		row["docNumber"] = text
+	}
+	if text := textValue(legalValueByLocalKey(m, "L004EP")); text != "" {
+		row["kind"] = text
+	}
+	if text := textValue(legalValueByLocalKey(m, "L510EP")); text != "" {
+		row["detail"] = text
 	}
 	return row
+}
+
+func looksLikeLegalEventMap(m map[string]any) bool {
+	if strings.TrimSpace(textValue(m["@code"])) != "" {
+		return true
+	}
+	hasL001 := false
+	hasL007 := false
+	hasL008 := false
+	hasAnyCode := false
+	for key := range m {
+		local := localXMLKey(key)
+		if legalCodePattern.MatchString(local) {
+			hasAnyCode = true
+		}
+		if local == "L001EP" {
+			hasL001 = true
+		}
+		if local == "L007EP" {
+			hasL007 = true
+		}
+		if local == "L008EP" {
+			hasL008 = true
+		}
+	}
+	return hasAnyCode && hasL001 && (hasL007 || hasL008)
+}
+
+func legalValueByLocalKey(v any, local string) any {
+	switch t := v.(type) {
+	case map[string]any:
+		for key, child := range t {
+			if strings.EqualFold(localXMLKey(key), local) {
+				return child
+			}
+			if nested := legalValueByLocalKey(child, local); nested != nil {
+				return nested
+			}
+		}
+	case []any:
+		for _, child := range t {
+			if nested := legalValueByLocalKey(child, local); nested != nil {
+				return nested
+			}
+		}
+	}
+	return nil
+}
+
+func localXMLKey(key string) string {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return ""
+	}
+	if idx := strings.LastIndex(key, ":"); idx >= 0 && idx+1 < len(key) {
+		key = key[idx+1:]
+	}
+	return strings.TrimPrefix(key, "@")
 }
 
 func firstNonEmpty(values ...string) string {

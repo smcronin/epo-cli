@@ -1,6 +1,6 @@
 # epo-cli
 
-Agent-ready CLI for the EPO Open Patent Services (OPS) API.
+Agent-ready CLI for EPO Open Patent Services (OPS) and European Publication Server (EPS) APIs.
 
 ## Install
 
@@ -50,6 +50,13 @@ epo usage today -f json -q
 epo usage week -f json -q
 epo usage quota -f json -q
 
+# EPS publication feed + bulk download
+epo eps dates --limit 5 -f json -q
+epo eps patents 20260225 --limit 20 -f json -q
+epo eps formats EP1004359NWB1 -f json -q
+epo eps fetch EP1004359NWB1 --format zip --out .tmp/eps-bulk/sample/EP1004359NWB1.zip -f json -q
+epo eps bulk --max-dates 1 --max-patents 25 --format zip --out-dir .tmp/eps-bulk -f json -q
+
 # CPC structured parsing
 epo cpc search --q "network routing" --normalize -f json -q
 
@@ -71,6 +78,7 @@ MSYS_NO_PATHCONV=1 epo raw get "/published-data/publication/docdb/EP.1000000.A1/
 - `epo status` - combined timeline helper
 - `epo cpc` - CPC retrieval/search/map/media
 - `epo usage` - usage stats and quota shortcuts
+- `epo eps` - EPS publication dates/patents/formats/raw document and bulk download workflows
 - `epo raw` - direct OPS fallback requests
 - `epo methods` - machine-readable command contract catalog
 
@@ -133,6 +141,8 @@ go run ./tools/eval --json-out .tmp/eval/report.json
 - [Number formats](docs/guides/number-formats.md)
 - [Rate limits](docs/guides/rate-limits.md)
 - [OPS service reference](docs/api-reference/services.md)
+- [EPS bulk download guide](docs/guides/eps-bulk-download.md)
+- [EPS REST services (official PDF converted)](docs/api-reference/eps-rest-services.md)
 
 ## License
 

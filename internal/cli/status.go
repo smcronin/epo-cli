@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/smcronin/epo-cli/internal/api"
@@ -61,7 +62,7 @@ func newStatusCmd() *cobra.Command {
 				"legalEvents":      legalEvents,
 				"registerRef":      effectiveRegisterRef,
 				"registerSummary":  map[string]any{},
-				"proceduralSteps":  []any{},
+				"proceduralSteps":  []map[string]any{},
 				"timelineWarnings": legalWarnings,
 			}
 			if effectiveRegisterRef == "" {
@@ -108,15 +109,116 @@ func newStatusCmd() *cobra.Command {
 	return cmd
 }
 
-func collectProceduralStepLabels(v any) []string {
-	values := map[string]struct{}{}
-	collectStringValuesByKey(v, "reg:step-name", values)
-	collectStringValuesByKey(v, "reg:procedural-step", values)
-	out := make([]string, 0, len(values))
-	for value := range values {
-		out = append(out, value)
+func collectProceduralStepLabels(v any) []map[string]any {
+	out := []map[string]any{}
+	seen := map[string]struct{}{}
+	var walk func(any)
+	walk = func(node any) {
+		switch t := node.(type) {
+		case map[string]any:
+			for key, child := range t {
+				if key == "reg:procedural-step" {
+					for _, rawStep := range asAnySliceOrSingleton(child) {
+						step := asAnyMap(rawStep)
+						if len(step) == 0 {
+							continue
+						}
+						code := strings.TrimSpace(textValue(step["reg:procedural-step-code"]))
+						description := strings.TrimSpace(proceduralStepDescription(step["reg:procedural-step-text"]))
+						phase := strings.TrimSpace(textValue(step["@procedure-step-phase"]))
+						date := strings.TrimSpace(proceduralStepDate(step["reg:procedural-step-date"]))
+						signature := strings.Join([]string{code, description, date, phase}, "|")
+						if _, exists := seen[signature]; exists {
+							continue
+						}
+						seen[signature] = struct{}{}
+						row := map[string]any{}
+						if code != "" {
+							row["code"] = code
+						}
+						if description != "" {
+							row["description"] = description
+						}
+						if date != "" {
+							row["date"] = date
+						}
+						if phase != "" {
+							row["phase"] = phase
+						}
+						if len(row) > 0 {
+							out = append(out, row)
+						}
+					}
+				}
+				walk(child)
+			}
+		case []any:
+			for _, child := range t {
+				walk(child)
+			}
+		}
 	}
+	walk(v)
+	sort.Slice(out, func(i, j int) bool {
+		leftDate := textValue(out[i]["date"])
+		rightDate := textValue(out[j]["date"])
+		if leftDate != rightDate {
+			return leftDate < rightDate
+		}
+		leftCode := textValue(out[i]["code"])
+		rightCode := textValue(out[j]["code"])
+		return leftCode < rightCode
+	})
 	return out
+}
+
+func proceduralStepDescription(v any) string {
+	switch t := v.(type) {
+	case map[string]any:
+		if strings.EqualFold(textValue(t["@step-text-type"]), "STEP_DESCRIPTION") {
+			return textValue(t["$"])
+		}
+		return firstNonEmpty(textValue(t["$"]), textValue(t["text"]))
+	case []any:
+		fallback := ""
+		for _, item := range t {
+			text := proceduralStepDescription(item)
+			if text == "" {
+				continue
+			}
+			itemMap := asAnyMap(item)
+			if strings.EqualFold(textValue(itemMap["@step-text-type"]), "STEP_DESCRIPTION") {
+				return text
+			}
+			if fallback == "" {
+				fallback = text
+			}
+		}
+		return fallback
+	default:
+		return textValue(t)
+	}
+}
+
+func proceduralStepDate(v any) string {
+	switch t := v.(type) {
+	case map[string]any:
+		return firstNonEmpty(textValue(t["reg:date"]), textValue(t["date"]))
+	case []any:
+		best := ""
+		for _, item := range t {
+			date := proceduralStepDate(item)
+			if date == "" {
+				continue
+			}
+			if best == "" || date < best {
+				best = date
+			}
+		}
+		return best
+	default:
+		return ""
+	}
 }
 
 func toAnyStringSlice(v any) []string {

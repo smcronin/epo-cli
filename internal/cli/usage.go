@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -217,22 +218,41 @@ func withUsageHumanDates(v any) any {
 func toEpochInt(v any) int64 {
 	switch t := v.(type) {
 	case int64:
-		return t
+		return normalizeEpochSeconds(t)
 	case int:
-		return int64(t)
+		return normalizeEpochSeconds(int64(t))
 	case float64:
-		return int64(t)
+		return normalizeEpochSeconds(int64(t))
 	case string:
 		trimmed := strings.TrimSpace(t)
 		if trimmed == "" {
 			return 0
 		}
+		for _, layout := range []string{"2006-01-02", "02/01/2006"} {
+			if parsed, err := time.Parse(layout, trimmed); err == nil {
+				return parsed.Unix()
+			}
+		}
 		parsed, err := time.Parse("20060102", trimmed)
 		if err == nil {
 			return parsed.Unix()
 		}
+		if numeric, err := strconv.ParseInt(trimmed, 10, 64); err == nil {
+			return normalizeEpochSeconds(numeric)
+		}
 	}
 	return 0
+}
+
+func normalizeEpochSeconds(epoch int64) int64 {
+	if epoch <= 0 {
+		return 0
+	}
+	// OPS usage timestamps are milliseconds since epoch.
+	if epoch >= 1_000_000_000_000 {
+		return epoch / 1000
+	}
+	return epoch
 }
 
 func resolveUsageTimeRange(date, from, to string) (string, error) {

@@ -5,79 +5,68 @@ description: "Use this skill when working with EPO Open Patent Services (OPS) da
 
 # EPO OPS CLI
 
-This skill helps an agent use and evolve the `epo` CLI in this repository for OPS v3.2 data access.
-
-Current implementation note:
-- The repository currently implements Phase 0 auth commands (`epo auth configure|token|check`).
-- References in this skill describe both current commands and the target command surface from `docs/PROJECT_PLAN.md`.
+Use this skill to run patent research and CLI QA against the local `epo` binary with reproducible commands and structured output.
 
 ## Quick Start
 
-1. Ensure credentials are available via either:
-- env vars: `EPO_CLIENT_ID` + `EPO_CLIENT_SECRET`
-- env vars: `CONSUMER_KEY` + `CONSUMER_SECRET_KEY`
-- stored config: `epo auth configure --client-id ... --client-secret ...`
+1. Configure credentials:
+- `epo config set-creds --from-env`
+- `epo config set-creds --from-dotenv .env`
+- or `epo auth configure --client-id ... --client-secret ...`
 
-2. Validate auth:
+2. Validate auth and inspect config:
 ```bash
+epo config show -f json -q
 epo auth check -f json -q
 ```
 
-3. Fetch a token when needed:
+3. Use machine-readable output for all agent flows:
 ```bash
-epo auth token --raw
+epo <command> -f json -q
 ```
 
-4. Prefer machine output for agent workflows:
+4. Use the command catalog as source of truth:
 ```bash
-epo <command> -f json -q --minify
+epo methods --json -f json -q
 ```
 
 ## Workflow
 
-1. Identify task type
-- Auth/setup
-- Search/retrieval
-- Family/legal/register analysis
-- Classification/number conversion
-- Usage/quota diagnostics
+1. Classify task:
+- publication search/retrieval
+- family/legal/register timeline
+- CPC/number conversion
+- usage/quota diagnostics
 
-2. Choose command family
-- See `references/commands.md`.
+2. Pick the smallest command that answers the question.
 
-3. Build minimal query first
-- Validate with a narrow request before broad pagination/bulk retrieval.
-- Use deterministic identifiers (`docdb`/`epodoc`) and explicit date bounds.
+3. Start narrow, then fan out:
+- search with bounded range or precise date window
+- confirm schema with one item
+- use `--all` only after confirming throttle headroom
 
-4. Execute with JSON output
-- Use `-f json -q`.
-- For token-sensitive flows, avoid printing full secrets.
+4. Use agent-friendly projections:
+- `--summary`, `--flat`, `--pick`, and stdin batch mode where useful
 
-5. Handle throttling and errors
-- Respect `Retry-After`.
-- Parse `X-Throttling-Control`.
-- See `references/errors-throttling.md`.
+5. Handle throttle/errors with bounded retries.
 
-6. Summarize and cite
-- Return key fields only, with the exact command used.
+6. Return concise evidence:
+- key fields
+- exact command used
+- explicit unresolved gaps if endpoint fails
 
-## Command Strategy
+## Research Defaults
 
-- Start from typed commands when available.
-- If a planned command is not implemented yet, use this order:
-1. Report the missing command plainly.
-2. Use closest implemented command.
-3. If needed, implement missing command in the CLI instead of inventing an external script.
+- Prefer `-f json -q`.
+- Prefer `pub search --summary` for quick answerability.
+- Prefer `family summary` before `family get` for triage.
+- Prefer `legal get --flat` and `register get --summary` for diligence timelines.
+- Use `status` to merge legal + register + procedural data in one response.
+- Use `usage quota` before large fan-out runs.
 
 ## Reference Files
 
-- Command map: `references/commands.md`
-- Workflow patterns: `references/workflows.md`
-- Query and number format patterns: `references/query-patterns.md`
-- Error/throttle handling: `references/errors-throttling.md`
-
-## Defaults
-
-- Use `-f json -q` for agent calls.
-- Use `--timeout` for long calls.
-- Avoid broad fan-out requests until throttle state is known.
+- Command routing: `references/commands.md`
+- End-to-end workflows: `references/workflows.md`
+- Query/identifier patterns: `references/query-patterns.md`
+- Error and throttle handling: `references/errors-throttling.md`

@@ -1,37 +1,23 @@
 # Errors and Throttling
 
-## OPS Headers to Watch
+## Headers to Inspect
 
-- `X-Throttling-Control`
-- `Retry-After`
-- `X-IndividualQuotaPerHour-Used`
-- `X-RegisteredQuotaPerWeek-Used`
-
-## Throttle Interpretation
-
-- Green: normal pace.
-- Yellow: reduce request rate.
-- Red: aggressive backoff.
-- Black: pause immediately and honor `Retry-After`.
+1. `X-Throttling-Control`
+2. `Retry-After`
+3. `X-IndividualQuotaPerHour-Used`
+4. `X-RegisteredQuotaPerWeek-Used`
 
 ## CLI Exit Codes
 
-- `0`: success
-- `1`: general error
-- `2`: usage/validation
-- `3`: auth failure
-- `4`: not found
-- `5`: rate limited
-- `6`: server error
+1. `0`: success
+2. `1`: general error
+3. `2`: usage/validation error
+4. `3`: auth failure
+5. `4`: not found
+6. `5`: rate limited
+7. `6`: server error
 
-## Agent Handling Pattern
-
-1. On `3`: refresh credential setup and re-run auth check.
-2. On `5`: wait/backoff, then retry bounded times.
-3. On `6`: retry with exponential backoff and cap attempts.
-4. On repeated `4`: stop retrying and report missing record.
-
-## JSON Error Envelope Shape
+## Error Envelope
 
 ```json
 {
@@ -41,6 +27,32 @@
     "type": "RATE_LIMITED",
     "message": "..."
   },
-  "version": "dev"
+  "version": "v0.1.0"
 }
 ```
+
+## Retry Policy
+
+1. `AUTH_FAILURE`:
+- run `epo auth check -f json -q`
+- refresh credential source
+- retry once
+
+2. `RATE_LIMITED`:
+- honor `Retry-After` when present
+- otherwise exponential backoff with cap
+- abort after bounded attempts
+
+3. `SERVER_ERROR`:
+- retry idempotent reads with jittered exponential backoff
+- do not retry validation errors
+
+4. `NOT_FOUND`:
+- stop retrying
+- report exact reference and endpoint
+
+## Safe Agent Behavior
+
+1. Keep retries bounded and explicit in output.
+2. Log the exact command for each failed call.
+3. For batch mode, preserve per-item errors in the final summary.

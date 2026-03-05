@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/smcronin/epo-cli/internal/api"
@@ -214,40 +215,204 @@ func summarizeRegisterPayload(v any) map[string]any {
 		"keyDates":         map[string]string{},
 	}
 
-	registerRows, _ := normalizeRows(map[string]any{
-		"ops:world-patent-data": asAnyMap(v)["ops:world-patent-data"],
-	})
-	if len(registerRows) > 0 {
-		row := registerRows[0]
-		summary["status"] = textValue(row["epPatentStatus"])
-		summary["application"] = fmt.Sprintf("%s%s", textValue(row["appCountry"]), textValue(row["appDocNumber"]))
-		summary["publication"] = fmt.Sprintf("%s%s", textValue(row["pubCountry"]), textValue(row["pubDocNumber"]))
-		if date := textValue(row["pubDate"]); date != "" {
-			keyDates := summary["keyDates"].(map[string]string)
-			keyDates["publicationDate"] = date
-		}
+	registerDoc := firstRegisterDocument(v)
+	if len(registerDoc) == 0 {
+		return summary
 	}
 
-	values := map[string]struct{}{}
-	collectStringValuesByKey(v, "reg:designated-state", values)
-	if len(values) > 0 {
-		states := make([]string, 0, len(values))
-		for value := range values {
-			states = append(states, value)
-		}
-		summary["designatedStates"] = states
+	status := firstNonEmpty(
+		textValue(registerDoc["@status"]),
+		textValue(asAnyMap(asAnyMap(registerDoc["reg:ep-patent-statuses"])["reg:ep-patent-status"])["$"]),
+	)
+	if status != "" {
+		summary["status"] = status
 	}
 
-	lapses := map[string]struct{}{}
-	collectStringValuesByKey(v, "reg:lapsed-in-country", lapses)
-	if len(lapses) > 0 {
-		list := make([]string, 0, len(lapses))
-		for value := range lapses {
-			list = append(list, value)
-		}
-		summary["lapseList"] = list
+	biblio := asAnyMap(registerDoc["reg:bibliographic-data"])
+	keyDates := summary["keyDates"].(map[string]string)
+
+	appDoc := asAnyMap(asAnyMap(biblio["reg:application-reference"])["reg:document-id"])
+	appCountry := textValue(appDoc["reg:country"])
+	appDocNumber := textValue(appDoc["reg:doc-number"])
+	if appCountry != "" || appDocNumber != "" {
+		summary["application"] = strings.ToUpper(strings.TrimSpace(appCountry + appDocNumber))
 	}
+	if filingDate := textValue(appDoc["reg:date"]); filingDate != "" {
+		keyDates["filingDate"] = filingDate
+	}
+
+	pubDoc := registerPublicationDocumentID(biblio)
+	pubCountry := textValue(pubDoc["reg:country"])
+	pubDocNumber := textValue(pubDoc["reg:doc-number"])
+	pubKind := textValue(pubDoc["reg:kind"])
+	if pubCountry != "" || pubDocNumber != "" || pubKind != "" {
+		summary["publication"] = strings.ToUpper(strings.TrimSpace(pubCountry + pubDocNumber + pubKind))
+	}
+	if pubDate := textValue(pubDoc["reg:date"]); pubDate != "" {
+		keyDates["publicationDate"] = pubDate
+	}
+
+	rightsEffective := asAnyMap(biblio["reg:dates-rights-effective"])
+	if firstExam := textValue(asAnyMap(rightsEffective["reg:first-examination-report-despatched"])["reg:date"]); firstExam != "" {
+		keyDates["firstExaminationReportDate"] = firstExam
+	}
+	if reqExam := textValue(asAnyMap(rightsEffective["reg:request-for-examination"])["reg:date"]); reqExam != "" {
+		keyDates["requestForExaminationDate"] = reqExam
+	}
+	if oppositionNotFiled := textValue(asAnyMap(asAnyMap(biblio["reg:opposition-data"])["reg:opposition-not-filed"])["reg:date"]); oppositionNotFiled != "" {
+		keyDates["oppositionNotFiledDate"] = oppositionNotFiled
+	}
+
+	designatedStates := extractRegisterDesignatedStates(biblio)
+	if len(designatedStates) > 0 {
+		summary["designatedStates"] = designatedStates
+	}
+
+	lapseList := extractRegisterLapseCountries(biblio)
+	if len(lapseList) > 0 {
+		summary["lapseList"] = lapseList
+	}
+
 	return summary
+}
+
+func firstRegisterDocument(v any) map[string]any {
+	world := asAnyMap(asAnyMap(v)["ops:world-patent-data"])
+	if len(world) == 0 {
+		return map[string]any{}
+	}
+	search := asAnyMap(world["ops:register-search"])
+	if len(search) == 0 {
+		return map[string]any{}
+	}
+	docs := asAnyMap(search["reg:register-documents"])
+	if len(docs) == 0 {
+		return map[string]any{}
+	}
+	if doc := asAnyMap(docs["reg:register-document"]); len(doc) > 0 {
+		return doc
+	}
+	if docList, ok := asAnySlice(docs["reg:register-document"]); ok {
+		for _, item := range docList {
+			if doc := asAnyMap(item); len(doc) > 0 {
+				return doc
+			}
+		}
+	}
+	return map[string]any{}
+}
+
+func registerPublicationDocumentID(biblio map[string]any) map[string]any {
+	refs := asAnySliceOrSingleton(biblio["reg:publication-reference"])
+	if len(refs) == 0 {
+		return map[string]any{}
+	}
+	best := map[string]any{}
+	for _, raw := range refs {
+		doc := asAnyMap(asAnyMap(raw)["reg:document-id"])
+		if len(doc) == 0 {
+			continue
+		}
+		if best == nil || len(best) == 0 {
+			best = doc
+		}
+		if strings.EqualFold(textValue(doc["reg:country"]), "EP") {
+			return doc
+		}
+	}
+	return best
+}
+
+func extractRegisterDesignatedStates(biblio map[string]any) []string {
+	designation := asAnyMap(biblio["reg:designation-of-states"])
+	if len(designation) == 0 {
+		return nil
+	}
+	states := map[string]struct{}{}
+	collectCountryCodes(designation, states)
+	delete(states, "EP")
+	return sortedSet(states)
+}
+
+func extractRegisterLapseCountries(biblio map[string]any) []string {
+	termOfGrant := asAnySliceOrSingleton(biblio["reg:term-of-grant"])
+	if len(termOfGrant) == 0 {
+		return nil
+	}
+	out := map[string]struct{}{}
+	for _, rawTerm := range termOfGrant {
+		term := asAnyMap(rawTerm)
+		lapses := asAnySliceOrSingleton(term["reg:lapsed-in-country"])
+		for _, rawLapse := range lapses {
+			lapse := asAnyMap(rawLapse)
+			country := strings.ToUpper(strings.TrimSpace(textValue(lapse["reg:country"])))
+			if isLikelyCountryCode(country) {
+				out[country] = struct{}{}
+			}
+		}
+	}
+	return sortedSet(out)
+}
+
+func collectCountryCodes(v any, out map[string]struct{}) {
+	switch t := v.(type) {
+	case map[string]any:
+		for key, child := range t {
+			if localXMLKey(key) == "country" {
+				collectCountryCodeValues(child, out)
+			}
+			collectCountryCodes(child, out)
+		}
+	case []any:
+		for _, child := range t {
+			collectCountryCodes(child, out)
+		}
+	}
+}
+
+func collectCountryCodeValues(v any, out map[string]struct{}) {
+	switch t := v.(type) {
+	case string:
+		country := strings.ToUpper(strings.TrimSpace(t))
+		if isLikelyCountryCode(country) {
+			out[country] = struct{}{}
+		}
+	case map[string]any:
+		if raw, ok := t["$"]; ok {
+			collectCountryCodeValues(raw, out)
+		}
+		for _, child := range t {
+			collectCountryCodeValues(child, out)
+		}
+	case []any:
+		for _, child := range t {
+			collectCountryCodeValues(child, out)
+		}
+	}
+}
+
+func isLikelyCountryCode(value string) bool {
+	if len(value) != 2 {
+		return false
+	}
+	for _, r := range value {
+		if r < 'A' || r > 'Z' {
+			return false
+		}
+	}
+	return true
+}
+
+func sortedSet(values map[string]struct{}) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(values))
+	for value := range values {
+		out = append(out, value)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func collectStringValuesByKey(v any, key string, out map[string]struct{}) {

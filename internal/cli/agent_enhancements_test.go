@@ -93,7 +93,7 @@ func TestResolvePubInputFormatAndClaimsRouting(t *testing.T) {
 	if got := resolvePubInputFormat("EP.1000000.A1", "auto"); got != "docdb" {
 		t.Fatalf("unexpected auto format: %s", got)
 	}
-	if got := resolvePubInputFormat("EP1000000A1", "auto"); got != "epodoc" {
+	if got := resolvePubInputFormat("EP1000000A1", "auto"); got != "docdb" {
 		t.Fatalf("unexpected auto format for epodoc reference: %s", got)
 	}
 
@@ -138,14 +138,18 @@ func TestWithFulltextSuggestions(t *testing.T) {
 func TestStripMixedLayoutNodes(t *testing.T) {
 	input := map[string]any{
 		"reg:event-data": map[string]any{
-			"mixed.layout": []any{"one", "two"},
-			"kept":         true,
+			"mixed.layout":  []any{"one", "two"},
+			"@mixed.layout": []any{"three"},
+			"kept":          true,
 		},
 	}
 	out := stripMixedLayoutNodes(input).(map[string]any)
 	eventData := asAnyMap(out["reg:event-data"])
 	if _, exists := eventData["mixed.layout"]; exists {
 		t.Fatalf("mixed.layout should be stripped: %#v", eventData)
+	}
+	if _, exists := eventData["@mixed.layout"]; exists {
+		t.Fatalf("@mixed.layout should be stripped: %#v", eventData)
 	}
 }
 
@@ -165,10 +169,12 @@ func TestFlattenLegalEvents(t *testing.T) {
 	input := map[string]any{
 		"events": []any{
 			map[string]any{
-				"L001EP": "CODE",
-				"L002EP": "Description",
-				"L003EP": "DE",
-				"L007EP": "20260101",
+				"@code":      "AK",
+				"@desc":      "DESIGNATED CONTRACTING STATES",
+				"@infl":      "+",
+				"ops:L001EP": map[string]any{"$": "EP"},
+				"ops:L007EP": map[string]any{"$": "2003-02-12"},
+				"ops:L507EP": map[string]any{"$": "AT BE CH"},
 			},
 		},
 	}
@@ -176,7 +182,7 @@ func TestFlattenLegalEvents(t *testing.T) {
 	if len(rows) != 1 {
 		t.Fatalf("expected one legal row, got %d", len(rows))
 	}
-	if rows[0]["code"] != "CODE" || rows[0]["country"] != "DE" {
+	if rows[0]["code"] != "AK" || rows[0]["country"] != "EP" {
 		t.Fatalf("unexpected legal row: %#v", rows[0])
 	}
 }
@@ -192,13 +198,33 @@ func TestSummarizeRegisterPayload(t *testing.T) {
 								"reg:document-id": map[string]any{
 									"reg:country":    map[string]any{"$": "EP"},
 									"reg:doc-number": map[string]any{"$": "123456"},
+									"reg:date":       map[string]any{"$": "19990101"},
 								},
 							},
 							"reg:publication-reference": map[string]any{
 								"reg:document-id": map[string]any{
-									"reg:country":    map[string]any{"$": "WO"},
+									"reg:country":    map[string]any{"$": "EP"},
 									"reg:doc-number": map[string]any{"$": "20260001"},
 									"reg:date":       map[string]any{"$": "20260101"},
+									"reg:kind":       map[string]any{"$": "A1"},
+								},
+							},
+							"reg:designation-of-states": map[string]any{
+								"reg:designation-pct": map[string]any{
+									"reg:regional": map[string]any{
+										"reg:country": []any{
+											map[string]any{"$": "DE"},
+											map[string]any{"$": "FR"},
+										},
+									},
+								},
+							},
+							"reg:term-of-grant": []any{
+								map[string]any{
+									"reg:lapsed-in-country": []any{
+										map[string]any{"reg:country": map[string]any{"$": "FR"}},
+										map[string]any{"reg:country": map[string]any{"$": "IT"}},
+									},
 								},
 							},
 						},
@@ -208,8 +234,6 @@ func TestSummarizeRegisterPayload(t *testing.T) {
 					},
 				},
 			},
-			"reg:designated-state":  "DE",
-			"reg:lapsed-in-country": "FR",
 		},
 	}
 	summary := summarizeRegisterPayload(input)
@@ -218,6 +242,15 @@ func TestSummarizeRegisterPayload(t *testing.T) {
 	}
 	if summary["application"] != "EP123456" {
 		t.Fatalf("unexpected application ref: %#v", summary)
+	}
+	if summary["publication"] != "EP20260001A1" {
+		t.Fatalf("unexpected publication ref: %#v", summary)
+	}
+	if len(summary["designatedStates"].([]string)) != 2 {
+		t.Fatalf("unexpected designated states: %#v", summary["designatedStates"])
+	}
+	if len(summary["lapseList"].([]string)) != 2 {
+		t.Fatalf("unexpected lapse list: %#v", summary["lapseList"])
 	}
 }
 
@@ -257,11 +290,46 @@ func TestExtractUsageRowsWithMetrics(t *testing.T) {
 	}
 }
 
+func TestExtractUsageRowsWithValuesTimestamp(t *testing.T) {
+	input := map[string]any{
+		"environments": []any{
+			map[string]any{
+				"name": "prod",
+				"dimensions": []any{
+					map[string]any{
+						"metrics": []any{
+							map[string]any{
+								"name": "message_count",
+								"values": []any{
+									map[string]any{"timestamp": int64(1772582400000), "value": "270"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	rows, ok := extractUsageRows(input)
+	if !ok || len(rows) != 1 {
+		t.Fatalf("expected flattened usage rows, got %#v", rows)
+	}
+	if rows[0]["date"] != "2026-03-04" {
+		t.Fatalf("unexpected derived date: %#v", rows[0]["date"])
+	}
+	if rows[0]["message_count"] != "270" {
+		t.Fatalf("unexpected metric value: %#v", rows[0])
+	}
+}
+
 func TestWithUsageHumanDates(t *testing.T) {
-	input := map[string]any{"date": "20260304"}
+	input := map[string]any{"timestamp": int64(1772582400000), "date": "20260304"}
 	out := withUsageHumanDates(input).(map[string]any)
 	if out["date_human"] == "" {
 		t.Fatalf("expected human date enrichment: %#v", out)
+	}
+	if out["timestamp_human"] != "2026-03-04" {
+		t.Fatalf("expected ms timestamp conversion: %#v", out)
 	}
 }
 
@@ -273,7 +341,7 @@ func TestNormalizeCPCPayload(t *testing.T) {
   <score>15.23</score>
 </root>
 `)
-	searchRows := normalizeCPCPayload("search", "", "", "", searchXML)
+	searchRows := normalizeCPCPayload("search", "", "", "", nil, searchXML)
 	if len(searchRows) != 1 {
 		t.Fatalf("expected one search row, got %d", len(searchRows))
 	}
@@ -282,11 +350,74 @@ func TestNormalizeCPCPayload(t *testing.T) {
 	}
 
 	mapXML := []byte(`<root><classification-symbol>H04L45/00</classification-symbol><classification-symbol>H04L45/10</classification-symbol></root>`)
-	mapRows := normalizeCPCPayload("map", "H04L45/00", "cpc", "ipc", mapXML)
+	mapRows := normalizeCPCPayload("map", "H04L45/00", "cpc", "ipc", nil, mapXML)
 	if len(mapRows) == 0 {
 		t.Fatal("expected mapping rows")
 	}
 	if mapRows[0]["fromScheme"] != "CPC" || mapRows[0]["toScheme"] != "IPC" {
 		t.Fatalf("unexpected map row: %#v", mapRows[0])
+	}
+}
+
+func TestNormalizeCPCPayloadFromParsedSearch(t *testing.T) {
+	parsed := map[string]any{
+		"world-patent-data": map[string]any{
+			"classification-search": map[string]any{
+				"search-result": map[string]any{
+					"classification-statistics": []any{
+						map[string]any{
+							"@classification-symbol": "H04L45/00",
+							"@percentage":            "14.957265",
+							"class-title": map[string]any{
+								"title-part": map[string]any{
+									"text": map[string]any{"$": "Routing"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	rows := normalizeCPCPayload("search", "", "", "", parsed, nil)
+	if len(rows) != 1 || rows[0]["symbol"] != "H04L45/00" {
+		t.Fatalf("unexpected parsed search rows: %#v", rows)
+	}
+}
+
+func TestCollectProceduralStepLabelsStructured(t *testing.T) {
+	input := map[string]any{
+		"reg:procedural-data": map[string]any{
+			"reg:procedural-step": []any{
+				map[string]any{
+					"reg:procedural-step-code": map[string]any{"$": "RFEE"},
+					"reg:procedural-step-text": map[string]any{
+						"$":               "Renewal fee payment",
+						"@step-text-type": "STEP_DESCRIPTION",
+					},
+					"reg:procedural-step-date": map[string]any{
+						"reg:date": map[string]any{"$": "20011128"},
+					},
+				},
+			},
+		},
+	}
+	rows := collectProceduralStepLabels(input)
+	if len(rows) != 1 {
+		t.Fatalf("unexpected procedural rows: %#v", rows)
+	}
+	if rows[0]["code"] != "RFEE" || rows[0]["description"] != "Renewal fee payment" {
+		t.Fatalf("unexpected procedural row: %#v", rows[0])
+	}
+}
+
+func TestDedupeFlatPublicationRows(t *testing.T) {
+	rows := []map[string]any{
+		{"reference": "EP4703890A1", "title": "X", "pubDate": "20260304"},
+		{"reference": "EP4703890A1", "title": "X", "pubDate": "20260304"},
+	}
+	got := dedupeFlatPublicationRows(rows)
+	if len(got) != 1 {
+		t.Fatalf("expected dedupe to keep one row, got %#v", got)
 	}
 }

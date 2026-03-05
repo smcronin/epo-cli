@@ -1,49 +1,82 @@
 # EPO Workflow Patterns
 
-## 1. Authentication Bootstrap
+## 1. Preflight Session
 
-1. Configure credentials:
+1. Confirm auth and config:
 ```bash
-epo auth configure --client-id "$EPO_CLIENT_ID" --client-secret "$EPO_CLIENT_SECRET"
-```
-
-2. Validate:
-```bash
+epo config show -f json -q
 epo auth check -f json -q
 ```
-
-3. Optionally request raw token:
+2. Confirm quota/throttle baseline:
 ```bash
-epo auth token --raw
+epo usage quota -f json -q
+epo usage week -f table -q
 ```
 
-## 2. Research Session Pattern (planned command surface)
+## 2. Recent Prior-Art Sweep
 
-1. Start with narrow retrieval/search request.
-2. Confirm response schema and paging fields.
-3. Expand with `--all` only if needed.
-4. Watch throttle headers before high-volume fetch.
-
-## 3. Family + Legal + Register Investigation (planned)
-
-1. Resolve canonical identifier.
-2. Pull family members.
-3. Pull legal events for focal members.
-4. Pull register events/procedural steps for EP coverage.
-5. Produce timeline summary.
-
-## 4. Classification-Led Search Expansion (planned)
-
-1. Start from a CPC symbol.
-2. Expand hierarchy by depth and ancestors.
-3. Run published-data query constrained by CPC + dates.
-4. De-duplicate results and summarize key applicants.
-
-## 5. Agent Output Policy
-
-- Always prefer JSON in automation:
+1. Start with bounded CQL:
 ```bash
-epo <command> -f json -q --minify
+epo pub search --query 'applicant="SAP SE" and pd within "20250101 20260305"' --summary -f json -q
 ```
-- Preserve the exact command used in the report.
-- Return concise summaries with evidence fields, not full payload dumps.
+2. Expand with flat rows for export:
+```bash
+epo pub search --query 'applicant="SAP SE" and pd within "20250101 20260305"' --all --sort pub-date-desc --flat -f json -q
+```
+3. Pull detailed records only for selected refs:
+```bash
+epo pub biblio EP4703890A1 --flat -f json -q
+```
+
+## 3. EP Prosecution and Legal Timeline
+
+1. Get compact legal events:
+```bash
+epo legal get EP.1000000.A1 --ref-type publication --input-format docdb --flat -f json -q
+```
+2. Pull register summary with clean lapse/designation fields:
+```bash
+epo register get EP99203729 --summary -f json -q
+```
+3. Merge legal/register/procedural in one response:
+```bash
+epo status EP.1000000.A1 --register-ref EP99203729 -f json -q
+```
+
+## 4. Fulltext and Images Retrieval
+
+1. Discover fulltext instances:
+```bash
+epo pub fulltext EP1000000 --pick results.suggested_retrieval_commands -f json -q
+```
+2. Retrieve claims/description:
+```bash
+epo pub claims EP1000000A1 -f json -q
+epo pub description EP1000000A1 -f json -q
+```
+3. Fetch image PDF from inquiry link:
+```bash
+epo pub images inquiry EP1000000A1 -f json -q
+epo pub images fetch "published-data/images/EP/1000000/A1/fullimage" --link --range 1 --accept application/pdf --out out/EP1000000-page1.pdf -f json -q
+```
+
+## 5. CPC-Led Expansion
+
+1. Search CPC keyword:
+```bash
+epo cpc search --q "network routing" --normalize -f json -q
+```
+2. Inspect hierarchy:
+```bash
+epo cpc get H04L45/00 --depth 1 --normalize -f json -q
+```
+3. Map to IPC/ECLA:
+```bash
+epo cpc map H04L45/00 --from cpc --to ipc --normalize -f json -q
+```
+
+## 6. Batch Agent Pattern
+
+1. Keep one item per line on stdin.
+2. Prefer `--flat` + `--pick`/`--summary` when available.
+3. Report per-item failures directly from output rows (do not drop failures silently).

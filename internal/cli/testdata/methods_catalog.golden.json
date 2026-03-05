@@ -1077,6 +1077,179 @@
     ]
   },
   {
+    "command": "epo eps dates",
+    "service": "eps",
+    "implemented": true,
+    "summary": "List available EPS publication dates",
+    "optionalFlags": [
+      {
+        "name": "--from-date",
+        "description": "Inclusive lower date bound YYYYMMDD"
+      },
+      {
+        "name": "--to-date",
+        "description": "Inclusive upper date bound YYYYMMDD"
+      },
+      {
+        "name": "--order",
+        "default": "desc"
+      },
+      {
+        "name": "--limit",
+        "description": "Maximum dates to return"
+      }
+    ],
+    "outputShapeHint": "EPS envelope with date array",
+    "examples": [
+      "epo eps dates --limit 5 -f json -q"
+    ]
+  },
+  {
+    "command": "epo eps patents",
+    "service": "eps",
+    "implemented": true,
+    "summary": "List EPS patents for a publication date",
+    "optionalFlags": [
+      {
+        "name": "--limit",
+        "description": "Maximum patents per date"
+      },
+      {
+        "name": "--stdin",
+        "description": "Read multiple publication dates from stdin"
+      }
+    ],
+    "args": [
+      {
+        "name": "publication-date",
+        "required": true,
+        "example": "20260225"
+      }
+    ],
+    "outputShapeHint": "EPS envelope with patent list(s) for the date(s)",
+    "examples": [
+      "epo eps patents 20260225 --limit 20 -f json -q"
+    ]
+  },
+  {
+    "command": "epo eps formats",
+    "service": "eps",
+    "implemented": true,
+    "summary": "List available EPS document formats for a patent number",
+    "optionalFlags": [
+      {
+        "name": "--stdin",
+        "description": "Read multiple patent numbers from stdin"
+      }
+    ],
+    "args": [
+      {
+        "name": "patent-number",
+        "required": true,
+        "example": "EP1004359NWB1"
+      }
+    ],
+    "outputShapeHint": "EPS envelope with available formats and document links",
+    "examples": [
+      "epo eps formats EP1004359NWB1 -f json -q"
+    ]
+  },
+  {
+    "command": "epo eps fetch",
+    "service": "eps",
+    "implemented": true,
+    "summary": "Download EPS raw document bytes in XML/HTML/PDF/ZIP",
+    "optionalFlags": [
+      {
+        "name": "--format",
+        "default": "xml"
+      },
+      {
+        "name": "--out",
+        "description": "Write bytes to file"
+      },
+      {
+        "name": "--overwrite",
+        "description": "Replace existing output file"
+      },
+      {
+        "name": "--include-body",
+        "description": "Include base64 body in JSON output"
+      }
+    ],
+    "args": [
+      {
+        "name": "patent-number",
+        "required": true,
+        "example": "EP1004359NWB1"
+      }
+    ],
+    "outputShapeHint": "EPS envelope with content metadata and optional file/body output",
+    "examples": [
+      "epo eps fetch EP1004359NWB1 --format zip --out .tmp/eps-bulk/sample/EP1004359NWB1.zip -f json -q"
+    ]
+  },
+  {
+    "command": "epo eps bulk",
+    "service": "eps",
+    "implemented": true,
+    "summary": "Bulk index/download EPS publication content into a local data folder",
+    "optionalFlags": [
+      {
+        "name": "--date",
+        "description": "Single publication date YYYYMMDD"
+      },
+      {
+        "name": "--from-date",
+        "description": "Inclusive lower date bound YYYYMMDD"
+      },
+      {
+        "name": "--to-date",
+        "description": "Inclusive upper date bound YYYYMMDD"
+      },
+      {
+        "name": "--order",
+        "default": "desc"
+      },
+      {
+        "name": "--max-dates",
+        "description": "Maximum dates to process"
+      },
+      {
+        "name": "--max-patents",
+        "description": "Maximum patents to index/download"
+      },
+      {
+        "name": "--format",
+        "default": "zip"
+      },
+      {
+        "name": "--out-dir",
+        "default": ".tmp/eps-bulk"
+      },
+      {
+        "name": "--concurrency",
+        "default": "4"
+      },
+      {
+        "name": "--skip-existing",
+        "description": "Skip files already present"
+      },
+      {
+        "name": "--index-only",
+        "description": "Build date/patent indexes without document download"
+      },
+      {
+        "name": "--dry-run",
+        "description": "Plan/index only without downloads"
+      }
+    ],
+    "outputShapeHint": "EPS envelope with index stats, download summary, and manifest path",
+    "examples": [
+      "epo eps bulk --max-dates 1 --max-patents 25 --format zip --out-dir .tmp/eps-bulk -f json -q"
+    ]
+  },
+  {
     "command": "epo raw get",
     "service": "raw",
     "implemented": true,

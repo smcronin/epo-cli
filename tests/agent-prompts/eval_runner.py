@@ -32,7 +32,7 @@ from typing import Optional
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
 REPO_ROOT = SCRIPT_DIR.parent.parent.resolve()
-DEFAULT_FRIX_ROOT = Path(r"C:\Users\sethc\dev\frix-agent")
+DEFAULT_FRIX_ROOT_ENV = "FRIX_ROOT"
 RESULTS_DIR = SCRIPT_DIR / "results"
 WORKSPACE_BASE = SCRIPT_DIR / "workspaces"
 P10_MIN_TIMEOUT = 900
@@ -83,6 +83,24 @@ def find_frix_headless(frix_root: Path) -> Optional[Path]:
         if path.exists():
             return path
     return None
+
+
+def resolve_frix_root(flag_value: str) -> Path:
+    if flag_value.strip():
+        return Path(flag_value).expanduser().resolve()
+
+    env_value = os.getenv(DEFAULT_FRIX_ROOT_ENV, "").strip()
+    if env_value:
+        return Path(env_value).expanduser().resolve()
+
+    candidate = (REPO_ROOT.parent / "frix-agent").resolve()
+    if candidate.exists():
+        return candidate
+
+    raise RuntimeError(
+        "FRIX root not configured. Pass --frix-root or set FRIX_ROOT "
+        "(for example: $env:FRIX_ROOT='C:\\path\\to\\frix-agent')."
+    )
 
 
 def extract_prompt_text(md_path: Path) -> str:
@@ -332,13 +350,22 @@ def main() -> None:
     parser.add_argument("--timeout", type=int, default=700, help="Base timeout per prompt in seconds (default: 700)")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose per-prompt details")
     parser.add_argument("--dry-run", action="store_true", help="Print full prompts without running")
-    parser.add_argument("--frix-root", type=str, default=str(DEFAULT_FRIX_ROOT), help="Path to frix-agent repo")
+    parser.add_argument(
+        "--frix-root",
+        type=str,
+        default="",
+        help="Path to frix-agent repo (or set FRIX_ROOT)",
+    )
     parser.add_argument("--epo-bin", type=str, default="epo", help="EPO binary name/path (default: epo)")
     parser.add_argument("--skip-preflight", action="store_true", help="Skip preflight checks (skill, binary, auth)")
     parser.add_argument("--skip-auth-check", action="store_true", help="Skip credential configured check")
     args = parser.parse_args()
 
-    frix_root = Path(args.frix_root).resolve()
+    try:
+        frix_root = resolve_frix_root(args.frix_root)
+    except Exception as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
     frix_headless = find_frix_headless(frix_root)
     if not frix_headless:
         print(f"Error: frix headless script not found in {frix_root}", file=sys.stderr)
@@ -494,4 +521,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

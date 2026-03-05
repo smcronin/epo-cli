@@ -1,37 +1,53 @@
 # Query and Identifier Patterns
 
-## OPS Number Formats
+## Identifier Formats
 
-- `docdb`: `CC.number.KC[.date]` (example: `EP.1000000.A1`)
-- `epodoc`: compact EPO format (example: `EP1000000A1` or `EP1000000`)
-- `original`: domestic input format (used mainly for number conversion)
+1. `docdb`: `CC.number.kind` (example: `EP.1000000.A1`)
+2. `epodoc`: compact (example: `EP1000000A1` or `EP1000000`)
+3. `original`: domestic form for number conversion inputs
 
-Use number conversion when source numbers are ambiguous.
+Use:
+```bash
+epo number normalize <reference> -f json -q
+```
+when mixed sources produce ambiguous IDs.
 
-## Published-Data CQL Notes
+## Service-Specific Reference Rules
 
-Use CQL in `published-data/search` with explicit indexes where possible:
-- `pa=IBM`
-- `cpc=H04W`
-- `pd within "20240101 20241231"`
+1. `pub` commands accept `--input-format auto`; docdb works best for stable retrieval.
+2. `pub claims`/`pub description` accept kind-appended epodoc and auto-route to docdb when needed.
+3. `register events` and `register procedural-steps` require application epodoc (example: `EP99203729`).
+4. `legal get` for publication timelines is most reliable with:
+```bash
+--ref-type publication --input-format docdb
+```
 
-Prefer explicit ranges over open-ended search for reproducibility.
+## CQL Patterns
 
-## Register Search Note
+Prefer explicit date windows:
+```cql
+pd within "YYYYMMDD YYYYMMDD"
+```
+Example:
+```bash
+epo pub search --query 'applicant="SAP SE" and pd within "20250101 20260305"' -f json -q
+```
 
-Register CQL identifiers differ from published-data CQL.
-Do not assume published-data index aliases are valid for register.
+Avoid `pd>=YYYYMMDD`; the CLI validates and rejects this pattern.
 
-## Pagination/Range Guidance
+## Pagination and Batch
 
-- Default range is usually 1-25.
-- Typical max page size is 100.
-- Use bounded loops with stop conditions (`hasMore` / returned count).
+1. Use `--all` only after validating shape and quota.
+2. Use `--sort pub-date-desc` with `--all` for global chronological output.
+3. Use stdin mode for repeatable batch jobs:
+```bash
+cat refs.txt | epo pub biblio --stdin --flat -f json -q
+```
 
-## URL Encoding
+## Projection Patterns
 
-Encode query special characters:
-- `=` -> `%3D`
-- `:` -> `%3A`
-- space -> `%20`
-- `,` -> `%2C`
+1. Use `--pick` for compact answers.
+2. Array indexing is supported with bracket form:
+```text
+results.environments[0].dimensions[0].metrics
+```
