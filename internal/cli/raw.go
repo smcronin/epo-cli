@@ -16,6 +16,7 @@ func newRawCmd() *cobra.Command {
 	rawCmd := &cobra.Command{
 		Use:   "raw",
 		Short: "Raw OPS request escape hatch",
+		Long:  "Raw OPS request escape hatch. On Windows Git Bash/MSYS shells, prefix raw path calls with MSYS_NO_PATHCONV=1 to avoid path mangling.",
 	}
 	rawCmd.AddCommand(newRawGetCmd())
 	rawCmd.AddCommand(newRawPostCmd())
@@ -32,7 +33,10 @@ func newRawGetCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "get <path>",
 		Short: "Execute a raw GET against OPS",
-		Args:  cobra.ExactArgs(1),
+		Example: strings.TrimSpace(`
+MSYS_NO_PATHCONV=1 epo raw get "/published-data/publication/docdb/EP.1000000.A1/claims" -f json -q
+`),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := strings.TrimSpace(args[0])
 			if path == "" {
@@ -87,7 +91,10 @@ func newRawPostCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "post <path>",
 		Short: "Execute a raw POST against OPS",
-		Args:  cobra.ExactArgs(1),
+		Example: strings.TrimSpace(`
+MSYS_NO_PATHCONV=1 epo raw post "/published-data/search/biblio" --content-type text/plain --body "q=pa%3DIBM" -f json -q
+`),
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := strings.TrimSpace(args[0])
 			if path == "" {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/smcronin/epo-cli/internal/api"
@@ -25,7 +26,10 @@ func newRegisterCmd() *cobra.Command {
 }
 
 func newRegisterGetCmd() *cobra.Command {
-	var constituents string
+	var (
+		constituents string
+		summaryMode  bool
+	)
 
 	cmd := &cobra.Command{
 		Use:   "get <reference>",
@@ -35,6 +39,9 @@ func newRegisterGetCmd() *cobra.Command {
 			references, err := resolveSingleOrStdinInputs(args)
 			if err != nil {
 				return err
+			}
+			if summaryMode {
+				return runRegisterGetSummary(cmd, references, constituents)
 			}
 			return runOPSBatch(cmd, "register", references, func(reference string) (api.Request, map[string]any, error) {
 				path := fmt.Sprintf("/register/application/epodoc/%s", reference)
@@ -56,13 +63,14 @@ func newRegisterGetCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&constituents, "constituents", "", "Optional constituents: biblio,events,procedural-steps")
+	cmd.Flags().BoolVar(&summaryMode, "summary", false, "Return compact prosecution summary")
 	return cmd
 }
 
 func newRegisterSimpleCmd(name, endpoint, shortDesc string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   fmt.Sprintf("%s <reference>", name),
-		Short: shortDesc,
+		Short: shortDesc + " (expects application reference in epodoc format, e.g. EP99203729)",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			references, err := resolveSingleOrStdinInputs(args)
@@ -70,6 +78,14 @@ func newRegisterSimpleCmd(name, endpoint, shortDesc string) *cobra.Command {
 				return err
 			}
 			return runOPSBatch(cmd, "register", references, func(reference string) (api.Request, map[string]any, error) {
+				if isLikelyPublicationRef(reference) {
+					return api.Request{}, nil, &epoerrors.CLIError{
+						Code:    400,
+						Type:    "VALIDATION_ERROR",
+						Message: "register events/procedural-steps require an application reference in epodoc format",
+						Hint:    "Use an application number like EP99203729 (publication references such as EP.1000000.A1 are not accepted by this endpoint)",
+					}
+				}
 				path := fmt.Sprintf("/register/application/epodoc/%s/%s", reference, endpoint)
 				request := api.Request{
 					Method: http.MethodGet,
@@ -99,6 +115,9 @@ func newRegisterUPPCmd() *cobra.Command {
 			}
 			return runOPSBatch(cmd, "register", references, func(reference string) (api.Request, map[string]any, error) {
 				path := fmt.Sprintf("/register/publication/epodoc/%s/upp", reference)
+				if looksApplicationEpRef(reference) {
+					path = fmt.Sprintf("/register/application/epodoc/%s/upp", reference)
+				}
 				request := api.Request{
 					Method: http.MethodGet,
 					Path:   path,
@@ -113,6 +132,141 @@ func newRegisterUPPCmd() *cobra.Command {
 		},
 	}
 	return cmd
+}
+
+var (
+	publicationDocdbPattern  = regexp.MustCompile(`^[A-Z]{2}\.[0-9]+\.[A-Z][0-9]?$`)
+	publicationEpodocPattern = regexp.MustCompile(`^[A-Z]{2}[0-9]+[A-Z][0-9]?$`)
+	applicationEpodocPattern = regexp.MustCompile(`^[A-Z]{2}[0-9]{6,}$`)
+)
+
+func isLikelyPublicationRef(reference string) bool {
+	ref := strings.ToUpper(strings.TrimSpace(reference))
+	return publicationDocdbPattern.MatchString(ref) || publicationEpodocPattern.MatchString(ref)
+}
+
+func looksApplicationEpRef(reference string) bool {
+	ref := strings.ToUpper(strings.TrimSpace(reference))
+	return applicationEpodocPattern.MatchString(ref)
+}
+
+func runRegisterGetSummary(cmd *cobra.Command, references []string, constituents string) error {
+	results := make([]map[string]any, 0, len(references))
+	for _, reference := range references {
+		path := fmt.Sprintf("/register/application/epodoc/%s", reference)
+		if v := strings.TrimSpace(constituents); v != "" {
+			path += "/" + v
+		}
+		request := api.Request{
+			Method: http.MethodGet,
+			Path:   path,
+			Accept: "application/json",
+		}
+		resp, err := executeOPSRequest(cmd.Context(), request)
+		if err != nil {
+			results = append(results, map[string]any{
+				"input": reference,
+				"ok":    false,
+				"error": mapError(err),
+			})
+			continue
+		}
+		parsed, warnings := parseJSONBody(resp.Body)
+		results = append(results, map[string]any{
+			"input":    reference,
+			"ok":       true,
+			"summary":  summarizeRegisterPayload(parsed),
+			"warnings": warnings,
+		})
+	}
+
+	if len(results) == 1 {
+		single := results[0]
+		if ok, _ := single["ok"].(bool); ok {
+			return outputSuccess(cmd, responsePayload{
+				Service: "register",
+				Results: single["summary"],
+				Warnings: func() []string {
+					return toStringSlice(single["warnings"])
+				}(),
+			})
+		}
+		return &epoerrors.CLIError{
+			Code:    1,
+			Type:    "GENERAL_ERROR",
+			Message: fmt.Sprintf("%v", single["error"]),
+		}
+	}
+
+	return outputSuccess(cmd, responsePayload{
+		Service: "register",
+		Results: results,
+	})
+}
+
+func summarizeRegisterPayload(v any) map[string]any {
+	summary := map[string]any{
+		"status":           "",
+		"application":      "",
+		"publication":      "",
+		"designatedStates": []string{},
+		"lapseList":        []string{},
+		"keyDates":         map[string]string{},
+	}
+
+	registerRows, _ := normalizeRows(map[string]any{
+		"ops:world-patent-data": asAnyMap(v)["ops:world-patent-data"],
+	})
+	if len(registerRows) > 0 {
+		row := registerRows[0]
+		summary["status"] = textValue(row["epPatentStatus"])
+		summary["application"] = fmt.Sprintf("%s%s", textValue(row["appCountry"]), textValue(row["appDocNumber"]))
+		summary["publication"] = fmt.Sprintf("%s%s", textValue(row["pubCountry"]), textValue(row["pubDocNumber"]))
+		if date := textValue(row["pubDate"]); date != "" {
+			keyDates := summary["keyDates"].(map[string]string)
+			keyDates["publicationDate"] = date
+		}
+	}
+
+	values := map[string]struct{}{}
+	collectStringValuesByKey(v, "reg:designated-state", values)
+	if len(values) > 0 {
+		states := make([]string, 0, len(values))
+		for value := range values {
+			states = append(states, value)
+		}
+		summary["designatedStates"] = states
+	}
+
+	lapses := map[string]struct{}{}
+	collectStringValuesByKey(v, "reg:lapsed-in-country", lapses)
+	if len(lapses) > 0 {
+		list := make([]string, 0, len(lapses))
+		for value := range lapses {
+			list = append(list, value)
+		}
+		summary["lapseList"] = list
+	}
+	return summary
+}
+
+func collectStringValuesByKey(v any, key string, out map[string]struct{}) {
+	switch t := v.(type) {
+	case map[string]any:
+		for k, child := range t {
+			if k == key {
+				value := textValue(child)
+				if value != "" {
+					out[value] = struct{}{}
+				}
+			}
+			collectStringValuesByKey(child, key, out)
+		}
+	case []any:
+		for _, child := range t {
+			collectStringValuesByKey(child, key, out)
+		}
+	}
 }
 
 func newRegisterSearchCmd() *cobra.Command {

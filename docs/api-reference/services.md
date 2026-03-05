@@ -247,6 +247,8 @@ Content-Type: text/plain
 q=pa%3DIBM
 ```
 
+Using combined constituents is generally more quota-efficient than separate calls because OPS returns dossier slices in one request envelope.
+
 **Pagination:** default 1–25, max 100 via `Range` header.
 
 ---

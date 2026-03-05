@@ -162,3 +162,9 @@ Authorization: Bearer <token>
 - Timestamps in Unix time (ms)
 
 Updates within 10 minutes of each hour.
+
+CLI note:
+- `epo usage stats --human-dates` adds readable date fields.
+- `epo usage today` / `epo usage week` provide quick range shortcuts.
+- `epo usage quota` shows only current quota + throttle metadata.
+- Quota counters can lag behind message counts due to OPS aggregation cadence.

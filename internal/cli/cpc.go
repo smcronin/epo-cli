@@ -1,14 +1,18 @@
 package cli
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/xml"
 	"fmt"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/smcronin/epo-cli/internal/api"
@@ -34,6 +38,7 @@ func newCPCGetCmd() *cobra.Command {
 		navigation bool
 		ancestors  bool
 		accept     string
+		normalize  bool
 	)
 
 	cmd := &cobra.Command{
@@ -79,7 +84,7 @@ func newCPCGetCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return outputOPSResponse(cmd, "classification/cpc", requestMeta, resp, nil)
+			return outputCPCResponse(cmd, requestMeta, resp, normalize, "get", symbol, "", "")
 		},
 	}
 
@@ -87,6 +92,8 @@ func newCPCGetCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&navigation, "navigation", false, "Include previous/next navigation nodes")
 	cmd.Flags().BoolVar(&ancestors, "ancestors", false, "Include ancestor nodes")
 	cmd.Flags().StringVar(&accept, "accept", "application/cpc+xml", "Accept header")
+	cmd.Flags().BoolVar(&normalize, "normalize", false, "Parse XML and return structured symbol/title fields")
+	cmd.Flags().BoolVar(&normalize, "parsed", false, "Alias for --normalize")
 	return cmd
 }
 
@@ -95,6 +102,7 @@ func newCPCSearchCmd() *cobra.Command {
 		query       string
 		rangeHeader string
 		accept      string
+		normalize   bool
 	)
 
 	cmd := &cobra.Command{
@@ -131,13 +139,15 @@ func newCPCSearchCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return outputOPSResponse(cmd, "classification/cpc", requestMeta, resp, nil)
+			return outputCPCResponse(cmd, requestMeta, resp, normalize, "search", "", "", "")
 		},
 	}
 
 	cmd.Flags().StringVar(&query, "q", "", "Search keyword")
 	cmd.Flags().StringVar(&rangeHeader, "range", "", "Range window (for example 1-20)")
 	cmd.Flags().StringVar(&accept, "accept", "application/cpc+xml", "Accept header")
+	cmd.Flags().BoolVar(&normalize, "normalize", false, "Parse XML and return structured rows")
+	cmd.Flags().BoolVar(&normalize, "parsed", false, "Alias for --normalize")
 	return cmd
 }
 
@@ -234,6 +244,7 @@ func newCPCMapCmd() *cobra.Command {
 		to         string
 		additional bool
 		accept     string
+		normalize  bool
 	)
 
 	cmd := &cobra.Command{
@@ -289,14 +300,16 @@ func newCPCMapCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return outputOPSResponse(cmd, "classification/cpc", requestMeta, resp, nil)
+			return outputCPCResponse(cmd, requestMeta, resp, normalize, "map", symbol, from, to)
 		},
 	}
 
 	cmd.Flags().StringVar(&from, "from", "cpc", "Input scheme: ecla or cpc")
 	cmd.Flags().StringVar(&to, "to", "ecla", "Output scheme: cpc, ecla, or ipc")
-	cmd.Flags().BoolVar(&additional, "additional", false, "Include additional mapping context when supported")
+	cmd.Flags().BoolVar(&additional, "additional", false, "Include additional mapping context when supported (some symbols may return no additional differences)")
 	cmd.Flags().StringVar(&accept, "accept", "application/cpc+xml", "Accept header")
+	cmd.Flags().BoolVar(&normalize, "normalize", false, "Parse XML and return {from,fromScheme,to,toScheme} mappings")
+	cmd.Flags().BoolVar(&normalize, "parsed", false, "Alias for --normalize")
 	return cmd
 }
 
@@ -310,4 +323,175 @@ func defaultIfEmptyString(value, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func outputCPCResponse(cmd *cobra.Command, requestMeta map[string]any, resp api.Response, normalize bool, mode, symbol, from, to string) error {
+	if !normalize {
+		return outputOPSResponse(cmd, "classification/cpc", requestMeta, resp, nil)
+	}
+
+	results, warnings := parseJSONBody(resp.Body)
+	normalized := normalizeCPCPayload(mode, symbol, from, to, resp.Body)
+	if len(normalized) == 0 {
+		normalized = []map[string]any{
+			{"warning": "No structured CPC rows extracted from response"},
+		}
+	}
+	warningsOut := append([]string{}, warnings...)
+	if results != nil {
+		warningsOut = append(warningsOut, "Raw XML body parsed; use --format json without --normalize to inspect full payload.")
+	}
+	return outputSuccess(cmd, responsePayload{
+		Service: "classification/cpc",
+		Request: requestMeta,
+		Throttle: map[string]any{
+			"system":   resp.Metadata.Throttle.System,
+			"services": resp.Metadata.Throttle.Services,
+		},
+		Quota: map[string]int{
+			"hourUsed":       resp.Metadata.Quota.IndividualPerHourUsed,
+			"weekUsed":       resp.Metadata.Quota.RegisteredPerWeekUsed,
+			"payingWeekUsed": resp.Metadata.Quota.RegisteredPayingPerWeekUsed,
+		},
+		Results:  normalized,
+		Warnings: warningsOut,
+	})
+}
+
+func normalizeCPCPayload(mode, symbol, from, to string, body []byte) []map[string]any {
+	symbols := extractXMLValuesByLocalName(body, "classification-symbol")
+	if len(symbols) == 0 {
+		symbols = extractXMLValuesByLocalName(body, "symbol")
+	}
+	titles := extractXMLValuesByLocalName(body, "class-title")
+	if len(titles) == 0 {
+		titles = extractXMLValuesByLocalName(body, "title")
+	}
+	percentages := extractXMLValuesByLocalName(body, "score")
+	if len(percentages) == 0 {
+		percentages = extractXMLValuesByLocalName(body, "relevance")
+	}
+
+	switch mode {
+	case "map":
+		return buildCPCMapRows(symbol, from, to, symbols)
+	case "search":
+		return buildCPCSearchRows(symbols, titles, percentages)
+	default:
+		return buildCPCGetRows(symbols, titles)
+	}
+}
+
+func extractXMLValuesByLocalName(body []byte, localName string) []string {
+	localName = strings.ToLower(strings.TrimSpace(localName))
+	if localName == "" {
+		return nil
+	}
+
+	decoder := xml.NewDecoder(bytes.NewReader(body))
+	values := []string{}
+	for {
+		token, err := decoder.Token()
+		if err != nil {
+			break
+		}
+		start, ok := token.(xml.StartElement)
+		if !ok {
+			continue
+		}
+		if strings.ToLower(start.Name.Local) != localName {
+			continue
+		}
+		var value string
+		if decodeErr := decoder.DecodeElement(&value, &start); decodeErr != nil {
+			continue
+		}
+		value = strings.TrimSpace(value)
+		if value != "" {
+			values = append(values, value)
+		}
+	}
+	return values
+}
+
+func buildCPCGetRows(symbols, titles []string) []map[string]any {
+	max := len(symbols)
+	if len(titles) > max {
+		max = len(titles)
+	}
+	if max == 0 {
+		return nil
+	}
+
+	rows := make([]map[string]any, 0, max)
+	for i := 0; i < max; i++ {
+		row := map[string]any{}
+		if i < len(symbols) {
+			row["symbol"] = symbols[i]
+		}
+		if i < len(titles) {
+			row["title"] = titles[i]
+		}
+		rows = append(rows, row)
+	}
+	return rows
+}
+
+func buildCPCSearchRows(symbols, titles, percentages []string) []map[string]any {
+	max := len(symbols)
+	if len(titles) > max {
+		max = len(titles)
+	}
+	if len(percentages) > max {
+		max = len(percentages)
+	}
+	if max == 0 {
+		return nil
+	}
+
+	rows := make([]map[string]any, 0, max)
+	for i := 0; i < max; i++ {
+		row := map[string]any{}
+		if i < len(symbols) {
+			row["symbol"] = symbols[i]
+		}
+		if i < len(titles) {
+			row["title"] = titles[i]
+		}
+		if i < len(percentages) {
+			if f, err := strconv.ParseFloat(strings.TrimSpace(percentages[i]), 64); err == nil {
+				row["percentage"] = f
+			} else {
+				row["percentage"] = percentages[i]
+			}
+		}
+		rows = append(rows, row)
+	}
+	return rows
+}
+
+var nonSymbolChars = regexp.MustCompile(`[^A-Z0-9/]+`)
+
+func buildCPCMapRows(sourceSymbol, from, to string, symbols []string) []map[string]any {
+	sourceSymbol = strings.ToUpper(strings.TrimSpace(sourceSymbol))
+	seen := map[string]struct{}{}
+	rows := []map[string]any{}
+	for _, candidate := range symbols {
+		candidate = strings.ToUpper(strings.TrimSpace(candidate))
+		candidate = nonSymbolChars.ReplaceAllString(candidate, "")
+		if candidate == "" {
+			continue
+		}
+		if _, ok := seen[candidate]; ok {
+			continue
+		}
+		seen[candidate] = struct{}{}
+		rows = append(rows, map[string]any{
+			"from":       sourceSymbol,
+			"fromScheme": strings.ToUpper(from),
+			"to":         candidate,
+			"toScheme":   strings.ToUpper(to),
+		})
+	}
+	return rows
 }

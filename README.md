@@ -61,8 +61,8 @@ epo family get EP.1000000.A1
 # Full text search
 epo pub search --query "applicant=IBM" --range 1-25
 
-# Search all pages sorted by newest publication date
-epo pub search --query "applicant=\"SAP SE\" and pd>=2024" --all --sort pub-date-desc --flat
+# Search all pages sorted by newest publication date (recommended date syntax)
+epo pub search --query "applicant=\"SAP SE\" and pd within \"20250101 20260304\"" --all --sort pub-date-desc --flat
 
 # Agent-friendly table shortcut
 epo pub search --query "applicant=IBM" --all --table
@@ -78,6 +78,9 @@ epo register get EP99203729
 
 # Number format conversion
 epo number convert EP.1000000.A1 --ref-type publication --from-format docdb --to-format epodoc
+
+# Git Bash / MSYS raw path call on Windows
+MSYS_NO_PATHCONV=1 epo raw get "/published-data/publication/docdb/EP.1000000.A1/claims" -f json -q
 
 # Show saved credential status
 epo config show

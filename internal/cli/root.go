@@ -86,6 +86,7 @@ func init() {
 	rootCmd.AddCommand(newNumberCmd())
 	rootCmd.AddCommand(newRegisterCmd())
 	rootCmd.AddCommand(newLegalCmd())
+	rootCmd.AddCommand(newStatusCmd())
 	rootCmd.AddCommand(newCPCCmd())
 	rootCmd.AddCommand(newUsageCmd())
 	rootCmd.AddCommand(newRawCmd())
@@ -138,8 +139,55 @@ func buildSuccessEnvelope(cmd *cobra.Command, data any) successEnvelope {
 	} else {
 		env.Results = data
 	}
+	if pickResult, ok := projectEnvelopeIfRequested(env); ok {
+		env.Results = pickResult
+		return env
+	}
 	env.Results = applyPickProjection(env.Results)
 	return env
+}
+
+func projectEnvelopeIfRequested(env successEnvelope) (any, bool) {
+	fields := parsePickFields(flagPick)
+	if len(fields) == 0 {
+		return nil, false
+	}
+
+	envelopeMap := map[string]any{
+		"ok":         env.OK,
+		"command":    env.Command,
+		"service":    env.Service,
+		"request":    env.Request,
+		"pagination": env.Pagination,
+		"throttle":   env.Throttle,
+		"quota":      env.Quota,
+		"results":    env.Results,
+		"warnings":   env.Warnings,
+		"version":    env.Version,
+	}
+	projected := projectByFields(envelopeMap, fields)
+	if !hasProjectionValues(projected) {
+		return nil, false
+	}
+	return projected, true
+}
+
+func hasProjectionValues(v any) bool {
+	switch t := v.(type) {
+	case map[string]any:
+		return len(t) > 0
+	case []map[string]any:
+		for _, row := range t {
+			if len(row) > 0 {
+				return true
+			}
+		}
+		return false
+	case []any:
+		return len(t) > 0
+	default:
+		return v != nil
+	}
 }
 
 func writeJSON(v any) error {
@@ -248,6 +296,9 @@ func normalizeRows(v any) ([]map[string]any, bool) {
 	if knownRows, ok := extractKnownRows(v); ok {
 		return knownRows, true
 	}
+	if batchRows, ok := extractKnownBatchRows(v); ok {
+		return batchRows, true
+	}
 
 	rv := reflect.ValueOf(v)
 	for rv.Kind() == reflect.Pointer {
@@ -270,6 +321,56 @@ func normalizeRows(v any) ([]map[string]any, bool) {
 	default:
 		return []map[string]any{{"value": rv.Interface()}}, true
 	}
+}
+
+func extractKnownBatchRows(v any) ([]map[string]any, bool) {
+	items, ok := asAnySlice(v)
+	if !ok || len(items) == 0 {
+		return nil, false
+	}
+
+	rows := make([]map[string]any, 0, len(items))
+	matched := false
+	for _, item := range items {
+		entry := asAnyMap(item)
+		if len(entry) == 0 {
+			return nil, false
+		}
+		rawResults, hasResults := entry["results"]
+		if !hasResults {
+			return nil, false
+		}
+
+		resultMap := asAnyMap(rawResults)
+		if len(resultMap) == 0 {
+			return nil, false
+		}
+
+		known, ok := extractKnownRows(resultMap)
+		if !ok || len(known) == 0 {
+			return nil, false
+		}
+
+		matched = true
+		for _, knownRow := range known {
+			combined := map[string]any{}
+			if input := textValue(entry["input"]); input != "" {
+				combined["input"] = input
+			}
+			if query := textValue(entry["query"]); query != "" {
+				combined["query"] = query
+			}
+			for key, value := range knownRow {
+				combined[key] = value
+			}
+			rows = append(rows, combined)
+		}
+	}
+
+	if !matched {
+		return nil, false
+	}
+	return rows, true
 }
 
 func extractKnownRows(v any) ([]map[string]any, bool) {
@@ -497,16 +598,107 @@ func extractUsageRows(root map[string]any) ([]map[string]any, bool) {
 	}
 
 	notices := asStringSlice(asAnyMap(root["metaData"])["notices"])
-	rows := make([]map[string]any, 0, len(environments))
+	rows := make([]map[string]any, 0, len(environments)*8)
 	for _, rawEnv := range environments {
 		env := asAnyMap(rawEnv)
-		row := map[string]any{
-			"environment": textValue(env["name"]),
-			"notices":     strings.Join(notices, " | "),
+		flattened := flattenUsageEnvironment(env, notices)
+		if len(flattened) == 0 {
+			rows = append(rows, map[string]any{
+				"environment": textValue(env["name"]),
+				"notices":     strings.Join(notices, " | "),
+			})
+			continue
 		}
-		rows = append(rows, row)
+		rows = append(rows, flattened...)
 	}
 	return rows, true
+}
+
+func flattenUsageEnvironment(env map[string]any, notices []string) []map[string]any {
+	environment := textValue(env["name"])
+	dimensions, ok := asAnySlice(env["dimensions"])
+	if !ok || len(dimensions) == 0 {
+		return nil
+	}
+
+	grouped := map[string]map[string]any{}
+	for _, rawDim := range dimensions {
+		dim := asAnyMap(rawDim)
+		metrics, ok := asAnySlice(dim["metrics"])
+		if !ok {
+			continue
+		}
+		for _, rawMetric := range metrics {
+			metric := asAnyMap(rawMetric)
+			metricName := normalizeUsageMetricName(firstNonEmpty(
+				textValue(metric["name"]),
+				textValue(metric["metric"]),
+				textValue(metric["@name"]),
+			))
+			if metricName == "" {
+				continue
+			}
+
+			points, pointsOK := asAnySlice(metric["points"])
+			if !pointsOK {
+				points = []any{metric}
+			}
+			for _, rawPoint := range points {
+				point := asAnyMap(rawPoint)
+				date := firstNonEmpty(
+					textValue(point["date"]),
+					textValue(point["timestamp"]),
+					textValue(point["day"]),
+				)
+				value := firstNonEmpty(
+					textValue(point["value"]),
+					textValue(point["count"]),
+					textValue(point["total"]),
+				)
+				if date == "" && value == "" {
+					continue
+				}
+				key := environment + "|" + date
+				if _, exists := grouped[key]; !exists {
+					grouped[key] = map[string]any{
+						"environment": environment,
+						"date":        date,
+						"notices":     strings.Join(notices, " | "),
+					}
+				}
+				grouped[key][metricName] = value
+			}
+		}
+	}
+
+	if len(grouped) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(grouped))
+	for key := range grouped {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	rows := make([]map[string]any, 0, len(keys))
+	for _, key := range keys {
+		rows = append(rows, grouped[key])
+	}
+	return rows
+}
+
+func normalizeUsageMetricName(name string) string {
+	name = strings.ToLower(strings.TrimSpace(name))
+	name = strings.ReplaceAll(name, "-", "_")
+	name = strings.ReplaceAll(name, " ", "_")
+	switch {
+	case strings.Contains(name, "message") && strings.Contains(name, "count"):
+		return "message_count"
+	case strings.Contains(name, "response") && strings.Contains(name, "size"):
+		return "total_response_size"
+	default:
+		return name
+	}
 }
 
 func referenceTypeFromMap(v map[string]any) string {
@@ -746,10 +938,16 @@ func mapError(err error) *epoerrors.CLIError {
 				Hint:    "Verify client credentials via `epo auth check`",
 			}
 		case apiErr.StatusCode == 404:
+			hint := ""
+			msg := strings.ToLower(apiErr.Error() + " " + apiErr.Body)
+			if strings.Contains(msg, "claims") || strings.Contains(msg, "description") {
+				hint = "Try docdb format with dot-separated reference, for example EP.1000000.A1 --input-format docdb."
+			}
 			return &epoerrors.CLIError{
 				Code:    apiErr.StatusCode,
 				Type:    "NOT_FOUND",
 				Message: apiErr.Error(),
+				Hint:    hint,
 			}
 		case apiErr.StatusCode == 429:
 			return &epoerrors.CLIError{

@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/smcronin/epo-cli/internal/api"
 	epoerrors "github.com/smcronin/epo-cli/internal/errors"
@@ -21,14 +22,18 @@ func newUsageCmd() *cobra.Command {
 		Short: "OPS usage statistics operations",
 	}
 	usageCmd.AddCommand(newUsageStatsCmd())
+	usageCmd.AddCommand(newUsageTodayCmd())
+	usageCmd.AddCommand(newUsageWeekCmd())
+	usageCmd.AddCommand(newUsageQuotaCmd())
 	return usageCmd
 }
 
 func newUsageStatsCmd() *cobra.Command {
 	var (
-		date string
-		from string
-		to   string
+		date       string
+		from       string
+		to         string
+		humanDates bool
 	)
 
 	cmd := &cobra.Command{
@@ -56,14 +61,178 @@ func newUsageStatsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return outputOPSResponse(cmd, "usage", requestMeta, resp, nil)
+			results, warnings := parseJSONBody(resp.Body)
+			if humanDates {
+				results = withUsageHumanDates(results)
+			}
+			return outputSuccess(cmd, responsePayload{
+				Service: "usage",
+				Request: requestMeta,
+				Throttle: map[string]any{
+					"system":   resp.Metadata.Throttle.System,
+					"services": resp.Metadata.Throttle.Services,
+				},
+				Quota: map[string]int{
+					"hourUsed":       resp.Metadata.Quota.IndividualPerHourUsed,
+					"weekUsed":       resp.Metadata.Quota.RegisteredPerWeekUsed,
+					"payingWeekUsed": resp.Metadata.Quota.RegisteredPayingPerWeekUsed,
+				},
+				Results:  results,
+				Warnings: warnings,
+			})
 		},
 	}
 
 	cmd.Flags().StringVar(&date, "date", "", "Single date in dd/mm/yyyy")
 	cmd.Flags().StringVar(&from, "from", "", "Start date in dd/mm/yyyy")
 	cmd.Flags().StringVar(&to, "to", "", "End date in dd/mm/yyyy")
+	cmd.Flags().BoolVar(&humanDates, "human-dates", false, "Add human-readable date fields alongside epoch timestamps")
 	return cmd
+}
+
+func newUsageTodayCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "today",
+		Short: "Fetch usage stats for today",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			today := time.Now().Format("02/01/2006")
+			return runUsageStatsShortcut(cmd, today, "", true)
+		},
+	}
+}
+
+func newUsageWeekCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "week",
+		Short: "Fetch usage stats for the last 7 days",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			end := time.Now()
+			start := end.AddDate(0, 0, -6)
+			return runUsageStatsShortcut(cmd, start.Format("02/01/2006"), end.Format("02/01/2006"), true)
+		},
+	}
+}
+
+func newUsageQuotaCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "quota",
+		Short: "Show current quota/throttle counters without full usage payload",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			request := api.Request{
+				Method: http.MethodGet,
+				Path:   "/developers/me/stats/usage",
+				Query:  url.Values{"timeRange": []string{time.Now().Format("02/01/2006")}},
+				Accept: "application/json",
+			}
+			resp, err := executeOPSRequestWithBase(cmd.Context(), request, usageBaseURL)
+			if err != nil {
+				return err
+			}
+			return outputSuccess(cmd, responsePayload{
+				Service: "usage",
+				Throttle: map[string]any{
+					"system":   resp.Metadata.Throttle.System,
+					"services": resp.Metadata.Throttle.Services,
+				},
+				Quota: map[string]int{
+					"hourUsed":       resp.Metadata.Quota.IndividualPerHourUsed,
+					"weekUsed":       resp.Metadata.Quota.RegisteredPerWeekUsed,
+					"payingWeekUsed": resp.Metadata.Quota.RegisteredPayingPerWeekUsed,
+				},
+				Results: map[string]any{
+					"message": "Quota counters update on OPS cadence and may lag behind message totals.",
+				},
+			})
+		},
+	}
+}
+
+func runUsageStatsShortcut(cmd *cobra.Command, from, to string, humanDates bool) error {
+	timeRange := from
+	if strings.TrimSpace(to) != "" {
+		timeRange = from + "~" + to
+	}
+
+	request := api.Request{
+		Method: http.MethodGet,
+		Path:   "/developers/me/stats/usage",
+		Query:  url.Values{"timeRange": []string{timeRange}},
+		Accept: "application/json",
+	}
+	requestMeta := map[string]any{
+		"method": request.Method,
+		"path":   request.Path,
+		"query":  compactQuery(request.Query),
+	}
+
+	resp, err := executeOPSRequestWithBase(cmd.Context(), request, usageBaseURL)
+	if err != nil {
+		return err
+	}
+	results, warnings := parseJSONBody(resp.Body)
+	if humanDates {
+		results = withUsageHumanDates(results)
+	}
+	return outputSuccess(cmd, responsePayload{
+		Service: "usage",
+		Request: requestMeta,
+		Throttle: map[string]any{
+			"system":   resp.Metadata.Throttle.System,
+			"services": resp.Metadata.Throttle.Services,
+		},
+		Quota: map[string]int{
+			"hourUsed":       resp.Metadata.Quota.IndividualPerHourUsed,
+			"weekUsed":       resp.Metadata.Quota.RegisteredPerWeekUsed,
+			"payingWeekUsed": resp.Metadata.Quota.RegisteredPayingPerWeekUsed,
+		},
+		Results:  results,
+		Warnings: warnings,
+	})
+}
+
+func withUsageHumanDates(v any) any {
+	switch t := v.(type) {
+	case map[string]any:
+		out := map[string]any{}
+		for key, value := range t {
+			out[key] = withUsageHumanDates(value)
+			if strings.EqualFold(key, "date") || strings.Contains(strings.ToLower(key), "timestamp") {
+				if epoch := toEpochInt(value); epoch > 0 {
+					out[key+"_human"] = time.Unix(epoch, 0).UTC().Format("2006-01-02")
+				}
+			}
+		}
+		return out
+	case []any:
+		rows := make([]any, 0, len(t))
+		for _, item := range t {
+			rows = append(rows, withUsageHumanDates(item))
+		}
+		return rows
+	default:
+		return v
+	}
+}
+
+func toEpochInt(v any) int64 {
+	switch t := v.(type) {
+	case int64:
+		return t
+	case int:
+		return int64(t)
+	case float64:
+		return int64(t)
+	case string:
+		trimmed := strings.TrimSpace(t)
+		if trimmed == "" {
+			return 0
+		}
+		parsed, err := time.Parse("20060102", trimmed)
+		if err == nil {
+			return parsed.Unix()
+		}
+	}
+	return 0
 }
 
 func resolveUsageTimeRange(date, from, to string) (string, error) {

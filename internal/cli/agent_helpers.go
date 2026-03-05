@@ -17,6 +17,9 @@ func applyPickProjection(value any) any {
 	if len(fields) == 0 {
 		return value
 	}
+	if projected, ok := projectBatchResultsByFields(value, fields); ok {
+		return projected
+	}
 	return projectByFields(value, fields)
 }
 
@@ -77,7 +80,7 @@ func lookupProjectionValue(v any, path string) (any, bool) {
 	}
 
 	current := v
-	for _, segment := range strings.Split(path, ".") {
+	for _, segment := range splitProjectionPath(path) {
 		segment = strings.TrimSpace(segment)
 		if segment == "" {
 			return nil, false
@@ -100,6 +103,92 @@ func lookupProjectionValue(v any, path string) (any, bool) {
 		}
 	}
 	return current, true
+}
+
+func splitProjectionPath(path string) []string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return nil
+	}
+
+	parts := make([]string, 0, 8)
+	for _, dotPart := range strings.Split(path, ".") {
+		dotPart = strings.TrimSpace(dotPart)
+		if dotPart == "" {
+			continue
+		}
+		base, indices := splitBracketIndices(dotPart)
+		if base != "" {
+			parts = append(parts, base)
+		}
+		parts = append(parts, indices...)
+	}
+	return parts
+}
+
+func splitBracketIndices(segment string) (string, []string) {
+	base := segment
+	indices := []string{}
+
+	for {
+		open := strings.Index(base, "[")
+		if open < 0 {
+			break
+		}
+		close := strings.Index(base[open:], "]")
+		if close < 0 {
+			break
+		}
+		close += open
+
+		indexValue := strings.TrimSpace(base[open+1 : close])
+		if indexValue != "" {
+			indices = append(indices, indexValue)
+		}
+
+		base = strings.TrimSpace(base[:open] + base[close+1:])
+	}
+	return base, indices
+}
+
+func projectBatchResultsByFields(value any, fields []string) (any, bool) {
+	items, ok := asAnySlice(value)
+	if !ok || len(items) == 0 {
+		return nil, false
+	}
+
+	seenBatch := false
+	projected := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		row := asAnyMap(item)
+		if len(row) == 0 {
+			return nil, false
+		}
+		_, hasResults := row["results"]
+		_, hasOK := row["ok"]
+		_, hasInput := row["input"]
+		if !(hasResults && (hasOK || hasInput)) {
+			return nil, false
+		}
+		seenBatch = true
+
+		out := map[string]any{}
+		for _, key := range []string{"input", "query", "ok", "error"} {
+			if v, exists := row[key]; exists {
+				out[key] = v
+			}
+		}
+
+		if v, exists := row["results"]; exists {
+			out["results"] = projectByFields(v, fields)
+		}
+		projected = append(projected, out)
+	}
+
+	if !seenBatch {
+		return nil, false
+	}
+	return projected, true
 }
 
 func resolveSingleOrStdinInputs(args []string) ([]string, error) {
