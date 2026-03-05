@@ -1,124 +1,139 @@
 # epo-cli
 
-A Go CLI for the EPO Open Patent Services (OPS) API — the REST API that powers Espacenet.
+Agent-ready CLI for the EPO Open Patent Services (OPS) API.
 
-## What is OPS?
-
-OPS provides machine-to-machine access to the EPO's full patent data corpus (120M+ documents) via a RESTful API. It's free with registration (up to ~4GB/week).
-
-- Free: register at https://developers.epo.org
-- Base URL: `https://ops.epo.org/3.2/`
-- Docs: [OPS Reference Guide v1.3.20 (June 2024)](docs/api-reference/ops-reference-guide-v1.3.20.md)
-
-## Services
-
-| Service | What it does |
-|---------|-------------|
-| `published-data` | Bibliographic data, fulltext, abstracts, images |
-| `family` | INPADOC patent family trees (worldwide equivalents) |
-| `number-service` | Convert between docdb / epodoc / original number formats |
-| `register` | EP Register: prosecution history, procedural steps, events |
-| `legal` | Legal status events for the full patent lifecycle |
-| `classification/cpc` | CPC classification retrieval, search, and mapping |
-
-## Installation
+## Install
 
 ```bash
+# From source
 go install github.com/smcronin/epo-cli/cmd/epo@latest
-```
 
-Or build from source:
-
-```bash
-git clone https://github.com/smcronin/epo-cli
-cd epo-cli
-go build -o epo ./cmd/epo
+# Or download release binaries:
+# https://github.com/smcronin/epo-cli/releases
 ```
 
 ## Authentication
 
-Get credentials at https://developers.epo.org → My Apps → Add App → select `OPS v3.2`
+Get credentials at https://developers.epo.org and configure once:
 
 ```bash
 export EPO_CLIENT_ID=your_consumer_key
 export EPO_CLIENT_SECRET=your_consumer_secret
 
-# Or use a config file
 epo config set-creds --from-env
+epo auth check -f json -q
 ```
 
-See [Authentication Guide](docs/guides/authentication.md) for full details.
-
-## Quick Examples
+## Quick Start
 
 ```bash
-# Bibliographic data
-epo pub biblio EP1000000.A1
+# Search with biblio-enriched flat output
+epo pub search --query "applicant=\"SAP SE\" and pd within \"20250101 20260305\"" --all --sort pub-date-desc --flat --enrich -f json -q
 
-# Patent family (INPADOC)
-epo family get EP.1000000.A1
+# Agent summary output
+epo pub search --query "applicant=IBM" --summary --flat-pick "reference,title,pubDate" -f json -q
 
-# Full text search
-epo pub search --query "applicant=IBM" --range 1-25
+# Biblio + family + legal
+epo pub biblio EP.1000000.A1 --input-format auto --flat -f json -q
+epo family summary EP.1000000.A1 -f json -q
+epo legal get EP.1000000.A1 --flat -f json -q
 
-# Search all pages sorted by newest publication date (recommended date syntax)
-epo pub search --query "applicant=\"SAP SE\" and pd within \"20250101 20260304\"" --all --sort pub-date-desc --flat
+# Register and combined status timeline
+epo register get EP99203729 --summary -f json -q
+epo status EP.1000000.A1 --register-ref EP99203729 -f json -q
 
-# Agent-friendly table shortcut
-epo pub search --query "applicant=IBM" --all --table
+# Number normalization
+epo number normalize EP1000000A1 -f json -q
 
-# Claims
-epo pub claims EP1000000.A1
+# Usage shortcuts
+epo usage today -f json -q
+epo usage week -f json -q
+epo usage quota -f json -q
 
-# Legal status
-epo legal get EP1000000.A1
+# CPC structured parsing
+epo cpc search --q "network routing" --normalize -f json -q
 
-# Register history (EP only)
-epo register get EP99203729
+# Images inquiry -> fetch using raw @link
+epo pub images inquiry EP1000000.A1 -f json -q
+epo pub images fetch "published-data/images/EP/1000000/A1/fullimage" --link --range 1 --accept application/pdf --out page1.pdf -f json -q
 
-# Number format conversion
-epo number convert EP.1000000.A1 --ref-type publication --from-format docdb --to-format epodoc
-
-# Git Bash / MSYS raw path call on Windows
+# Windows Git Bash/MSYS raw path usage
 MSYS_NO_PATHCONV=1 epo raw get "/published-data/publication/docdb/EP.1000000.A1/claims" -f json -q
-
-# Show saved credential status
-epo config show
-
-# Check latest release / updater status
-epo update --check
 ```
 
-See [Examples](examples/) for real-world usage patterns.
+## Command Groups
+
+- `epo pub` - published-data operations (biblio/abstract/fulltext/claims/description/search/images/equivalents)
+- `epo family` - INPADOC family retrieval and summary
+- `epo number` - number format conversion/normalization
+- `epo register` - EP register dossier/events/procedural/UPP/search
+- `epo legal` - legal status events
+- `epo status` - combined timeline helper
+- `epo cpc` - CPC retrieval/search/map/media
+- `epo usage` - usage stats and quota shortcuts
+- `epo raw` - direct OPS fallback requests
+- `epo methods` - machine-readable command contract catalog
+
+## Output and Agent Features
+
+Global flags designed for automation:
+
+- `-f, --format` (`json`, `ndjson`, `csv`, `table`)
+- `--pick` projection with dot paths and array indexing
+- `--stdin` batch mode for newline-delimited inputs
+- `--all` auto-pagination where supported
+- `--minify` compact JSON output
+- `--timeout` request timeout in seconds
+
+Stable JSON envelope:
+
+```json
+{
+  "ok": true,
+  "command": "epo pub search",
+  "service": "published-data",
+  "request": {},
+  "pagination": {},
+  "throttle": {},
+  "quota": {},
+  "results": [],
+  "warnings": [],
+  "version": "..."
+}
+```
+
+## Release and Versioning
+
+- Tag format: `v*` (for example `v0.1.0`)
+- GitHub Actions release workflow cross-builds linux/darwin/windows archives
+- Binary version is injected at build time via ldflags:
+  `-X github.com/smcronin/epo-cli/internal/cli.version=<tag>`
+
+## Development
+
+```bash
+go test ./...
+
+# Optional live integration tests
+$env:EPO_INTEGRATION="1"
+$env:EPO_CLIENT_ID="..."
+$env:EPO_CLIENT_SECRET="..."
+go test ./tests/integration -v -count=1 -timeout 600s
+
+# Local smoke evaluator
+go run ./tools/eval --json-out .tmp/eval/report.json
+```
 
 ## Docs
 
-- [API Reference — Full OPS Guide](docs/api-reference/ops-reference-guide-v1.3.20.md)
-- [Authentication](docs/guides/authentication.md)
-- [Rate Limits & Throttling](docs/guides/rate-limits.md)
-- [Number Formats](docs/guides/number-formats.md)
-- [CQL Search Syntax](docs/guides/cql-search.md)
-- [Services Reference](docs/api-reference/services.md)
+- [Changelog](CHANGELOG.md)
+- [Contributing](CONTRIBUTING.md)
+- [Authentication guide](docs/guides/authentication.md)
+- [CQL search syntax](docs/guides/cql-search.md)
+- [Number formats](docs/guides/number-formats.md)
+- [Rate limits](docs/guides/rate-limits.md)
+- [OPS service reference](docs/api-reference/services.md)
 
-## Agent Eval Runner
+## License
 
-Run full agent-UAT prompts through `frix-agent` headless mode:
-
-```bash
-python tests/agent-prompts/eval_runner.py
-python tests/agent-prompts/eval_runner.py --prompts 1,3,10
-```
-
-Preflight requirements:
-
-- `epo` must be installed on PATH
-- EPO credentials must be configured (`epo config show` -> `configured: true`)
-- `frix-agent` repo available at `C:\Users\sethc\dev\frix-agent`
-
-Prompt suite details: [tests/agent-prompts/README.md](tests/agent-prompts/README.md)
-
-Quick local sanity evaluator (non-headless) is still available:
-
-```bash
-go run ./tools/eval --json-out .tmp/eval/report.json
-```
+MIT

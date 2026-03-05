@@ -4,3 +4,5 @@ epo-cli
 .env
 config.yaml
 config.json
+.tmp/
+dist/

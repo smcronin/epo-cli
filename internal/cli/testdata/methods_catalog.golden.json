@@ -145,11 +145,19 @@
       },
       {
         "name": "--input-format",
-        "default": "epodoc"
+        "default": "auto"
       },
       {
         "name": "--constituents",
         "default": "biblio"
+      },
+      {
+        "name": "--flat",
+        "description": "Flatten biblio payload to row fields"
+      },
+      {
+        "name": "--summary",
+        "description": "Return compact biblio summary"
       },
       {
         "name": "--stdin",
@@ -181,7 +189,7 @@
       },
       {
         "name": "--input-format",
-        "default": "epodoc"
+        "default": "auto"
       },
       {
         "name": "--stdin",
@@ -212,7 +220,7 @@
       },
       {
         "name": "--input-format",
-        "default": "epodoc"
+        "default": "auto"
       },
       {
         "name": "--stdin",
@@ -243,7 +251,11 @@
       },
       {
         "name": "--input-format",
-        "default": "epodoc"
+        "default": "auto"
+      },
+      {
+        "name": "--kind",
+        "description": "Optional kind code when omitted from reference"
       },
       {
         "name": "--stdin",
@@ -274,7 +286,11 @@
       },
       {
         "name": "--input-format",
-        "default": "epodoc"
+        "default": "auto"
+      },
+      {
+        "name": "--kind",
+        "description": "Optional kind code when omitted from reference"
       },
       {
         "name": "--stdin",
@@ -305,7 +321,7 @@
       },
       {
         "name": "--input-format",
-        "default": "epodoc"
+        "default": "auto"
       },
       {
         "name": "--constituents",
@@ -378,6 +394,18 @@
         "description": "Flatten search results to top-level fields"
       },
       {
+        "name": "--enrich",
+        "description": "Ensure biblio-enriched fields (title/pubDate) in flat output"
+      },
+      {
+        "name": "--summary",
+        "description": "Agent summary output {query,total,topResults}"
+      },
+      {
+        "name": "--flat-pick",
+        "description": "Enable --flat --enrich and set pick fields quickly"
+      },
+      {
         "name": "--table",
         "description": "Shortcut for --format table --flat with default fields"
       },
@@ -389,7 +417,8 @@
     "outputShapeHint": "Published-data envelope with search result set and pagination",
     "examples": [
       "epo pub search --query \"applicant=IBM\" --range 1-25 -f json -q",
-      "epo pub search --query \"applicant=IBM\" --all --sort pub-date-desc --flat -f json -q",
+      "epo pub search --query \"applicant=IBM and pd within \\\"20250101 20260304\\\"\" --all --sort pub-date-desc --flat -f json -q",
+      "epo pub search --query \"applicant=IBM\" --summary --flat-pick \"reference,title,pubDate\" -f json -q",
       "epo pub search --query \"applicant=IBM\" --all --table",
       "echo \"applicant=IBM\" | epo pub search --stdin --all --table"
     ]
@@ -406,7 +435,7 @@
       },
       {
         "name": "--input-format",
-        "default": "epodoc"
+        "default": "auto"
       },
       {
         "name": "--stdin",
@@ -444,6 +473,10 @@
         "description": "Source system (From)"
       },
       {
+        "name": "--link",
+        "description": "Accept raw inquiry @link path directly"
+      },
+      {
         "name": "--out",
         "description": "Write binary output to file"
       },
@@ -465,7 +498,7 @@
     ],
     "outputShapeHint": "Content metadata (type/bytes/hash) and optional body/file path",
     "examples": [
-      "epo pub images fetch EP/1000000/A1/thumbnail --accept image/png -f json -q"
+      "epo pub images fetch \"published-data/images/EP/1000000/A1/fullimage\" --link --range 1 --accept application/pdf -f json -q"
     ]
   },
   {
@@ -497,6 +530,14 @@
         "description": "biblio, legal, or biblio,legal"
       },
       {
+        "name": "--flat",
+        "description": "Flatten member rows"
+      },
+      {
+        "name": "--table",
+        "description": "Shortcut for --format table --flat"
+      },
+      {
         "name": "--stdin",
         "description": "Read multiple references from stdin"
       }
@@ -514,6 +555,37 @@
     ]
   },
   {
+    "command": "epo family summary",
+    "service": "family",
+    "implemented": true,
+    "summary": "Return condensed family summary with country counts",
+    "optionalFlags": [
+      {
+        "name": "--ref-type",
+        "default": "publication"
+      },
+      {
+        "name": "--input-format",
+        "default": "docdb"
+      },
+      {
+        "name": "--stdin",
+        "description": "Read multiple references from stdin"
+      }
+    ],
+    "args": [
+      {
+        "name": "reference",
+        "required": true,
+        "example": "EP.1000000.A1"
+      }
+    ],
+    "outputShapeHint": "Summary with member count and per-country breakdown",
+    "examples": [
+      "epo family summary EP.1000000.A1 -f json -q"
+    ]
+  },
+  {
     "command": "epo number convert",
     "service": "number-service",
     "implemented": true,
@@ -525,11 +597,23 @@
       },
       {
         "name": "--from-format",
-        "default": "docdb"
+        "default": "auto"
       },
       {
         "name": "--to-format",
         "default": "epodoc"
+      },
+      {
+        "name": "--guess-format",
+        "description": "Auto-detect input format when from-format=auto"
+      },
+      {
+        "name": "--auto-detect",
+        "description": "Alias for --guess-format"
+      },
+      {
+        "name": "--normalize",
+        "description": "Return flattened conversion fields"
       },
       {
         "name": "--stdin",
@@ -549,6 +633,33 @@
     ]
   },
   {
+    "command": "epo number normalize",
+    "service": "number-service",
+    "implemented": true,
+    "summary": "Auto-detect number format and normalize to docdb",
+    "optionalFlags": [
+      {
+        "name": "--ref-type",
+        "default": "publication"
+      },
+      {
+        "name": "--stdin",
+        "description": "Read multiple references from stdin"
+      }
+    ],
+    "args": [
+      {
+        "name": "reference",
+        "required": true,
+        "example": "EP1000000A1"
+      }
+    ],
+    "outputShapeHint": "Normalized docdb fields with detected input format",
+    "examples": [
+      "epo number normalize EP1000000A1 -f json -q"
+    ]
+  },
+  {
     "command": "epo register get",
     "service": "register",
     "implemented": true,
@@ -557,6 +668,10 @@
       {
         "name": "--constituents",
         "description": "biblio,events,procedural-steps"
+      },
+      {
+        "name": "--summary",
+        "description": "Compact prosecution summary"
       },
       {
         "name": "--stdin",
@@ -570,7 +685,7 @@
         "example": "EP99203729"
       }
     ],
-    "outputShapeHint": "Register envelope with dossier payload",
+    "outputShapeHint": "Register envelope with dossier payload; combined constituents typically save quota calls versus separate endpoint calls",
     "examples": [
       "epo register get EP99203729 -f json -q",
       "epo register get EP99203729 --constituents biblio,events -f json -q"
@@ -580,7 +695,7 @@
     "command": "epo register events",
     "service": "register",
     "implemented": true,
-    "summary": "Fetch register events endpoint",
+    "summary": "Fetch register events endpoint (expects application epodoc reference)",
     "optionalFlags": [
       {
         "name": "--stdin",
@@ -603,7 +718,7 @@
     "command": "epo register procedural-steps",
     "service": "register",
     "implemented": true,
-    "summary": "Fetch register procedural steps endpoint",
+    "summary": "Fetch register procedural steps endpoint (expects application epodoc reference)",
     "optionalFlags": [
       {
         "name": "--stdin",
@@ -626,7 +741,7 @@
     "command": "epo register upp",
     "service": "register",
     "implemented": true,
-    "summary": "Fetch unitary patent protection endpoint",
+    "summary": "Fetch unitary patent protection endpoint (publication or application-style ref)",
     "optionalFlags": [
       {
         "name": "--stdin",
@@ -699,6 +814,14 @@
         "default": "docdb"
       },
       {
+        "name": "--flat",
+        "description": "Return simplified legal event rows"
+      },
+      {
+        "name": "--summary",
+        "description": "Return compact legal summary"
+      },
+      {
         "name": "--stdin",
         "description": "Read multiple references from stdin"
       }
@@ -713,6 +836,33 @@
     "outputShapeHint": "Legal envelope with INPADOC events",
     "examples": [
       "epo legal get EP.1000000.A1 --ref-type publication --input-format docdb -f json -q"
+    ]
+  },
+  {
+    "command": "epo status",
+    "service": "status",
+    "implemented": true,
+    "summary": "Combine legal, register, and procedural timeline views",
+    "optionalFlags": [
+      {
+        "name": "--input-format",
+        "default": "auto"
+      },
+      {
+        "name": "--register-ref",
+        "description": "Explicit application epodoc ref for register merge"
+      }
+    ],
+    "args": [
+      {
+        "name": "reference",
+        "required": true,
+        "example": "EP.1000000.A1"
+      }
+    ],
+    "outputShapeHint": "Combined timeline payload with legal events and register/procedural summaries",
+    "examples": [
+      "epo status EP.1000000.A1 --register-ref EP99203729 -f json -q"
     ]
   },
   {
@@ -732,6 +882,14 @@
       {
         "name": "--ancestors",
         "description": "Include ancestor nodes"
+      },
+      {
+        "name": "--normalize",
+        "description": "Parse XML into structured rows"
+      },
+      {
+        "name": "--parsed",
+        "description": "Alias for --normalize"
       },
       {
         "name": "--accept",
@@ -766,6 +924,14 @@
       {
         "name": "--range",
         "description": "Range window, example 1-20"
+      },
+      {
+        "name": "--normalize",
+        "description": "Parse XML into structured rows"
+      },
+      {
+        "name": "--parsed",
+        "description": "Alias for --normalize"
       },
       {
         "name": "--accept",
@@ -827,6 +993,14 @@
         "description": "Request additional mapping context"
       },
       {
+        "name": "--normalize",
+        "description": "Parse XML into mapping rows"
+      },
+      {
+        "name": "--parsed",
+        "description": "Alias for --normalize"
+      },
+      {
         "name": "--accept",
         "default": "application/cpc+xml"
       }
@@ -860,12 +1034,46 @@
       {
         "name": "--to",
         "description": "Range end dd/mm/yyyy"
+      },
+      {
+        "name": "--human-dates",
+        "description": "Add human-readable dates beside timestamps"
       }
     ],
     "outputShapeHint": "Usage envelope with message counts and response size",
     "examples": [
       "epo usage stats --date 01/03/2024 -f json -q",
       "epo usage stats --from 01/03/2024 --to 07/03/2024 -f json -q"
+    ]
+  },
+  {
+    "command": "epo usage today",
+    "service": "usage",
+    "implemented": true,
+    "summary": "Shortcut for current-day usage stats",
+    "outputShapeHint": "Usage envelope for today",
+    "examples": [
+      "epo usage today -f json -q"
+    ]
+  },
+  {
+    "command": "epo usage week",
+    "service": "usage",
+    "implemented": true,
+    "summary": "Shortcut for trailing 7-day usage stats",
+    "outputShapeHint": "Usage envelope for last 7 days",
+    "examples": [
+      "epo usage week -f json -q"
+    ]
+  },
+  {
+    "command": "epo usage quota",
+    "service": "usage",
+    "implemented": true,
+    "summary": "Show current quota and throttle counters only",
+    "outputShapeHint": "Quota/throttle metadata without full usage payload",
+    "examples": [
+      "epo usage quota -f json -q"
     ]
   },
   {
@@ -896,7 +1104,7 @@
     ],
     "outputShapeHint": "Raw envelope with direct service response",
     "examples": [
-      "epo raw get /published-data/search --query q=applicant=IBM -f json -q"
+      "MSYS_NO_PATHCONV=1 epo raw get \"/published-data/search\" --query q=applicant=IBM -f json -q"
     ]
   },
   {
@@ -939,7 +1147,7 @@
     ],
     "outputShapeHint": "Raw envelope with direct service response",
     "examples": [
-      "epo raw post /published-data/search --content-type text/plain --body \"q=applicant%3DIBM\" -f json -q"
+      "MSYS_NO_PATHCONV=1 epo raw post \"/published-data/search\" --content-type text/plain --body \"q=applicant%3DIBM\" -f json -q"
     ]
   }
 ]

@@ -56,7 +56,7 @@ func TestPubCommandsIntegration(t *testing.T) {
 		},
 		{
 			name:        "search",
-			args:        []string{"pub", "search", "--q", "applicant=IBM", "--range", "1-2", "-f", "json", "-q"},
+			args:        []string{"pub", "search", "--query", "applicant=IBM", "--range", "1-2", "-f", "json", "-q"},
 			wantCommand: "epo pub search",
 		},
 	}

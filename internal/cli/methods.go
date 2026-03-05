@@ -150,8 +150,10 @@ func buildMethodCatalog() []methodCatalogEntry {
 			},
 			OptionalFlags: []methodFlag{
 				{Name: "--ref-type", Default: "publication"},
-				{Name: "--input-format", Default: "epodoc"},
+				{Name: "--input-format", Default: "auto"},
 				{Name: "--constituents", Default: "biblio"},
+				{Name: "--flat", Description: "Flatten biblio payload to row fields"},
+				{Name: "--summary", Description: "Return compact biblio summary"},
 				{Name: "--stdin", Description: "Read multiple references from stdin"},
 			},
 			OutputShapeHint: "Published-data envelope with throttle, quota, and JSON results",
@@ -169,7 +171,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 			},
 			OptionalFlags: []methodFlag{
 				{Name: "--ref-type", Default: "publication"},
-				{Name: "--input-format", Default: "epodoc"},
+				{Name: "--input-format", Default: "auto"},
 				{Name: "--stdin", Description: "Read multiple references from stdin"},
 			},
 			OutputShapeHint: "Published-data envelope with abstract payload",
@@ -187,7 +189,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 			},
 			OptionalFlags: []methodFlag{
 				{Name: "--ref-type", Default: "publication"},
-				{Name: "--input-format", Default: "epodoc"},
+				{Name: "--input-format", Default: "auto"},
 				{Name: "--stdin", Description: "Read multiple references from stdin"},
 			},
 			OutputShapeHint: "Published-data envelope with fulltext inquiry payload",
@@ -205,7 +207,8 @@ func buildMethodCatalog() []methodCatalogEntry {
 			},
 			OptionalFlags: []methodFlag{
 				{Name: "--ref-type", Default: "publication"},
-				{Name: "--input-format", Default: "epodoc"},
+				{Name: "--input-format", Default: "auto"},
+				{Name: "--kind", Description: "Optional kind code when omitted from reference"},
 				{Name: "--stdin", Description: "Read multiple references from stdin"},
 			},
 			OutputShapeHint: "Published-data envelope with claims payload",
@@ -223,7 +226,8 @@ func buildMethodCatalog() []methodCatalogEntry {
 			},
 			OptionalFlags: []methodFlag{
 				{Name: "--ref-type", Default: "publication"},
-				{Name: "--input-format", Default: "epodoc"},
+				{Name: "--input-format", Default: "auto"},
+				{Name: "--kind", Description: "Optional kind code when omitted from reference"},
 				{Name: "--stdin", Description: "Read multiple references from stdin"},
 			},
 			OutputShapeHint: "Published-data envelope with description payload",
@@ -241,7 +245,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 			},
 			OptionalFlags: []methodFlag{
 				{Name: "--ref-type", Default: "publication"},
-				{Name: "--input-format", Default: "epodoc"},
+				{Name: "--input-format", Default: "auto"},
 				{Name: "--constituents", Description: "abstract, biblio, biblio,full-cycle, images"},
 				{Name: "--stdin", Description: "Read multiple references from stdin"},
 			},
@@ -268,13 +272,17 @@ func buildMethodCatalog() []methodCatalogEntry {
 				{Name: "--sort", Description: "Sort results by publication date (pub-date-asc|pub-date-desc)"},
 				{Name: "--stdin", Description: "Read one query per stdin line"},
 				{Name: "--flat", Description: "Flatten search results to top-level fields"},
+				{Name: "--enrich", Description: "Ensure biblio-enriched fields (title/pubDate) in flat output"},
+				{Name: "--summary", Description: "Agent summary output {query,total,topResults}"},
+				{Name: "--flat-pick", Description: "Enable --flat --enrich and set pick fields quickly"},
 				{Name: "--table", Description: "Shortcut for --format table --flat with default fields"},
 				{Name: "--pick", Description: "Project selected fields in output"},
 			},
 			OutputShapeHint: "Published-data envelope with search result set and pagination",
 			Examples: []string{
 				"epo pub search --query \"applicant=IBM\" --range 1-25 -f json -q",
-				"epo pub search --query \"applicant=IBM\" --all --sort pub-date-desc --flat -f json -q",
+				"epo pub search --query \"applicant=IBM and pd within \\\"20250101 20260304\\\"\" --all --sort pub-date-desc --flat -f json -q",
+				"epo pub search --query \"applicant=IBM\" --summary --flat-pick \"reference,title,pubDate\" -f json -q",
 				"epo pub search --query \"applicant=IBM\" --all --table",
 				"echo \"applicant=IBM\" | epo pub search --stdin --all --table",
 			},
@@ -289,7 +297,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 			},
 			OptionalFlags: []methodFlag{
 				{Name: "--ref-type", Default: "publication"},
-				{Name: "--input-format", Default: "epodoc"},
+				{Name: "--input-format", Default: "auto"},
 				{Name: "--stdin", Description: "Read multiple references from stdin"},
 			},
 			OutputShapeHint: "Published-data envelope with document-instance links",
@@ -309,13 +317,14 @@ func buildMethodCatalog() []methodCatalogEntry {
 				{Name: "--accept", Default: "application/pdf"},
 				{Name: "--range", Description: "Single page selector for fullimage/tiff"},
 				{Name: "--from", Description: "Source system (From)"},
+				{Name: "--link", Description: "Accept raw inquiry @link path directly"},
 				{Name: "--out", Description: "Write binary output to file"},
 				{Name: "--include-body", Description: "Include base64 response body"},
 				{Name: "--stdin", Description: "Read multiple link paths from stdin"},
 			},
 			OutputShapeHint: "Content metadata (type/bytes/hash) and optional body/file path",
 			Examples: []string{
-				"epo pub images fetch EP/1000000/A1/thumbnail --accept image/png -f json -q",
+				"epo pub images fetch \"published-data/images/EP/1000000/A1/fullimage\" --link --range 1 --accept application/pdf -f json -q",
 			},
 		},
 		{
@@ -340,11 +349,31 @@ func buildMethodCatalog() []methodCatalogEntry {
 				{Name: "--ref-type", Default: "publication"},
 				{Name: "--input-format", Default: "docdb"},
 				{Name: "--constituents", Description: "biblio, legal, or biblio,legal"},
+				{Name: "--flat", Description: "Flatten member rows"},
+				{Name: "--table", Description: "Shortcut for --format table --flat"},
 				{Name: "--stdin", Description: "Read multiple references from stdin"},
 			},
 			OutputShapeHint: "Family envelope with member documents and optional biblio/legal payload",
 			Examples: []string{
 				"epo family get EP.1000000.A1 --ref-type publication --input-format docdb -f json -q",
+			},
+		},
+		{
+			Command:     "epo family summary",
+			Service:     "family",
+			Implemented: true,
+			Summary:     "Return condensed family summary with country counts",
+			Args: []methodArg{
+				{Name: "reference", Required: true, Example: "EP.1000000.A1"},
+			},
+			OptionalFlags: []methodFlag{
+				{Name: "--ref-type", Default: "publication"},
+				{Name: "--input-format", Default: "docdb"},
+				{Name: "--stdin", Description: "Read multiple references from stdin"},
+			},
+			OutputShapeHint: "Summary with member count and per-country breakdown",
+			Examples: []string{
+				"epo family summary EP.1000000.A1 -f json -q",
 			},
 		},
 		{
@@ -357,13 +386,33 @@ func buildMethodCatalog() []methodCatalogEntry {
 			},
 			OptionalFlags: []methodFlag{
 				{Name: "--ref-type", Default: "application"},
-				{Name: "--from-format", Default: "docdb"},
+				{Name: "--from-format", Default: "auto"},
 				{Name: "--to-format", Default: "epodoc"},
+				{Name: "--guess-format", Description: "Auto-detect input format when from-format=auto"},
+				{Name: "--auto-detect", Description: "Alias for --guess-format"},
+				{Name: "--normalize", Description: "Return flattened conversion fields"},
 				{Name: "--stdin", Description: "Read multiple references from stdin"},
 			},
 			OutputShapeHint: "Number-service envelope with converted reference formats",
 			Examples: []string{
 				"epo number convert EP.1000000.A1 --ref-type publication --from-format docdb --to-format epodoc -f json -q",
+			},
+		},
+		{
+			Command:     "epo number normalize",
+			Service:     "number-service",
+			Implemented: true,
+			Summary:     "Auto-detect number format and normalize to docdb",
+			Args: []methodArg{
+				{Name: "reference", Required: true, Example: "EP1000000A1"},
+			},
+			OptionalFlags: []methodFlag{
+				{Name: "--ref-type", Default: "publication"},
+				{Name: "--stdin", Description: "Read multiple references from stdin"},
+			},
+			OutputShapeHint: "Normalized docdb fields with detected input format",
+			Examples: []string{
+				"epo number normalize EP1000000A1 -f json -q",
 			},
 		},
 		{
@@ -376,9 +425,10 @@ func buildMethodCatalog() []methodCatalogEntry {
 			},
 			OptionalFlags: []methodFlag{
 				{Name: "--constituents", Description: "biblio,events,procedural-steps"},
+				{Name: "--summary", Description: "Compact prosecution summary"},
 				{Name: "--stdin", Description: "Read multiple references from stdin"},
 			},
-			OutputShapeHint: "Register envelope with dossier payload",
+			OutputShapeHint: "Register envelope with dossier payload; combined constituents typically save quota calls versus separate endpoint calls",
 			Examples: []string{
 				"epo register get EP99203729 -f json -q",
 				"epo register get EP99203729 --constituents biblio,events -f json -q",
@@ -388,7 +438,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 			Command:     "epo register events",
 			Service:     "register",
 			Implemented: true,
-			Summary:     "Fetch register events endpoint",
+			Summary:     "Fetch register events endpoint (expects application epodoc reference)",
 			Args: []methodArg{
 				{Name: "reference", Required: true, Example: "EP99203729"},
 			},
@@ -404,7 +454,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 			Command:     "epo register procedural-steps",
 			Service:     "register",
 			Implemented: true,
-			Summary:     "Fetch register procedural steps endpoint",
+			Summary:     "Fetch register procedural steps endpoint (expects application epodoc reference)",
 			Args: []methodArg{
 				{Name: "reference", Required: true, Example: "EP99203729"},
 			},
@@ -420,7 +470,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 			Command:     "epo register upp",
 			Service:     "register",
 			Implemented: true,
-			Summary:     "Fetch unitary patent protection endpoint",
+			Summary:     "Fetch unitary patent protection endpoint (publication or application-style ref)",
 			Args: []methodArg{
 				{Name: "reference", Required: true, Example: "EP99203729"},
 			},
@@ -463,11 +513,30 @@ func buildMethodCatalog() []methodCatalogEntry {
 			OptionalFlags: []methodFlag{
 				{Name: "--ref-type", Default: "publication"},
 				{Name: "--input-format", Default: "docdb"},
+				{Name: "--flat", Description: "Return simplified legal event rows"},
+				{Name: "--summary", Description: "Return compact legal summary"},
 				{Name: "--stdin", Description: "Read multiple references from stdin"},
 			},
 			OutputShapeHint: "Legal envelope with INPADOC events",
 			Examples: []string{
 				"epo legal get EP.1000000.A1 --ref-type publication --input-format docdb -f json -q",
+			},
+		},
+		{
+			Command:     "epo status",
+			Service:     "status",
+			Implemented: true,
+			Summary:     "Combine legal, register, and procedural timeline views",
+			Args: []methodArg{
+				{Name: "reference", Required: true, Example: "EP.1000000.A1"},
+			},
+			OptionalFlags: []methodFlag{
+				{Name: "--input-format", Default: "auto"},
+				{Name: "--register-ref", Description: "Explicit application epodoc ref for register merge"},
+			},
+			OutputShapeHint: "Combined timeline payload with legal events and register/procedural summaries",
+			Examples: []string{
+				"epo status EP.1000000.A1 --register-ref EP99203729 -f json -q",
 			},
 		},
 		{
@@ -482,6 +551,8 @@ func buildMethodCatalog() []methodCatalogEntry {
 				{Name: "--depth", Description: "Depth integer or all"},
 				{Name: "--navigation", Description: "Include prev/next nodes"},
 				{Name: "--ancestors", Description: "Include ancestor nodes"},
+				{Name: "--normalize", Description: "Parse XML into structured rows"},
+				{Name: "--parsed", Description: "Alias for --normalize"},
 				{Name: "--accept", Default: "application/cpc+xml"},
 			},
 			OutputShapeHint: "CPC envelope (XML body in raw field by default)",
@@ -499,6 +570,8 @@ func buildMethodCatalog() []methodCatalogEntry {
 			},
 			OptionalFlags: []methodFlag{
 				{Name: "--range", Description: "Range window, example 1-20"},
+				{Name: "--normalize", Description: "Parse XML into structured rows"},
+				{Name: "--parsed", Description: "Alias for --normalize"},
 				{Name: "--accept", Default: "application/cpc+xml"},
 			},
 			OutputShapeHint: "CPC envelope (XML body in raw field by default)",
@@ -536,6 +609,8 @@ func buildMethodCatalog() []methodCatalogEntry {
 				{Name: "--from", Default: "cpc"},
 				{Name: "--to", Default: "ecla"},
 				{Name: "--additional", Description: "Request additional mapping context"},
+				{Name: "--normalize", Description: "Parse XML into mapping rows"},
+				{Name: "--parsed", Description: "Alias for --normalize"},
 				{Name: "--accept", Default: "application/cpc+xml"},
 			},
 			OutputShapeHint: "CPC mapping envelope (XML body in raw field by default)",
@@ -552,11 +627,42 @@ func buildMethodCatalog() []methodCatalogEntry {
 				{Name: "--date", Description: "Single date dd/mm/yyyy"},
 				{Name: "--from", Description: "Range start dd/mm/yyyy"},
 				{Name: "--to", Description: "Range end dd/mm/yyyy"},
+				{Name: "--human-dates", Description: "Add human-readable dates beside timestamps"},
 			},
 			OutputShapeHint: "Usage envelope with message counts and response size",
 			Examples: []string{
 				"epo usage stats --date 01/03/2024 -f json -q",
 				"epo usage stats --from 01/03/2024 --to 07/03/2024 -f json -q",
+			},
+		},
+		{
+			Command:         "epo usage today",
+			Service:         "usage",
+			Implemented:     true,
+			Summary:         "Shortcut for current-day usage stats",
+			OutputShapeHint: "Usage envelope for today",
+			Examples: []string{
+				"epo usage today -f json -q",
+			},
+		},
+		{
+			Command:         "epo usage week",
+			Service:         "usage",
+			Implemented:     true,
+			Summary:         "Shortcut for trailing 7-day usage stats",
+			OutputShapeHint: "Usage envelope for last 7 days",
+			Examples: []string{
+				"epo usage week -f json -q",
+			},
+		},
+		{
+			Command:         "epo usage quota",
+			Service:         "usage",
+			Implemented:     true,
+			Summary:         "Show current quota and throttle counters only",
+			OutputShapeHint: "Quota/throttle metadata without full usage payload",
+			Examples: []string{
+				"epo usage quota -f json -q",
 			},
 		},
 		{
@@ -574,7 +680,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 			},
 			OutputShapeHint: "Raw envelope with direct service response",
 			Examples: []string{
-				"epo raw get /published-data/search --query q=applicant=IBM -f json -q",
+				"MSYS_NO_PATHCONV=1 epo raw get \"/published-data/search\" --query q=applicant=IBM -f json -q",
 			},
 		},
 		{
@@ -595,7 +701,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 			},
 			OutputShapeHint: "Raw envelope with direct service response",
 			Examples: []string{
-				"epo raw post /published-data/search --content-type text/plain --body \"q=applicant%3DIBM\" -f json -q",
+				"MSYS_NO_PATHCONV=1 epo raw post \"/published-data/search\" --content-type text/plain --body \"q=applicant%3DIBM\" -f json -q",
 			},
 		},
 	}
