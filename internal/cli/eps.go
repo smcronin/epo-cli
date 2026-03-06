@@ -266,7 +266,7 @@ func newEPSFormatsCmd() *cobra.Command {
 
 func newEPSFetchCmd() *cobra.Command {
 	var (
-		format      string
+		docFormat   string
 		outPath     string
 		overwrite   bool
 		includeBody bool
@@ -281,7 +281,7 @@ func newEPSFetchCmd() *cobra.Command {
 			if err := validateEPSPatent(patent); err != nil {
 				return err
 			}
-			normalizedFormat, err := validateEPSFormat(format)
+			normalizedFormat, err := validateEPSFormat(docFormat)
 			if err != nil {
 				return err
 			}
@@ -342,7 +342,7 @@ func newEPSFetchCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&format, "format", "xml", "Document format: xml, html, pdf, zip")
+	cmd.Flags().StringVar(&docFormat, "doc-format", "xml", "Document format: xml, html, pdf, zip")
 	cmd.Flags().StringVar(&outPath, "out", "", "Write output bytes to file path")
 	cmd.Flags().BoolVar(&overwrite, "overwrite", false, "Overwrite output file if it exists")
 	cmd.Flags().BoolVar(&includeBody, "include-body", false, "Include base64-encoded body in JSON output")
@@ -357,7 +357,7 @@ func newEPSBulkCmd() *cobra.Command {
 		order        string
 		limitDates   int
 		maxPatents   int
-		format       string
+		docFormat    string
 		outDir       string
 		concurrency  int
 		skipExisting bool
@@ -398,7 +398,7 @@ func newEPSBulkCmd() *cobra.Command {
 					Message: "--concurrency must be >= 1",
 				}
 			}
-			normalizedFormat, err := validateEPSFormat(format)
+			normalizedFormat, err := validateEPSFormat(docFormat)
 			if err != nil {
 				return err
 			}
@@ -586,7 +586,7 @@ func newEPSBulkCmd() *cobra.Command {
 	cmd.Flags().StringVar(&order, "order", "desc", "Date iteration order: asc or desc")
 	cmd.Flags().IntVar(&limitDates, "max-dates", 0, "Maximum publication dates to process (0 = all in range)")
 	cmd.Flags().IntVar(&maxPatents, "max-patents", 0, "Maximum patents to index/download (0 = all)")
-	cmd.Flags().StringVar(&format, "format", "zip", "Document format to download: xml, html, pdf, zip")
+	cmd.Flags().StringVar(&docFormat, "doc-format", "zip", "Document format to download: xml, html, pdf, zip")
 	cmd.Flags().StringVar(&outDir, "out-dir", epsDefaultOutDir, "Output root directory for indexes and downloaded files")
 	cmd.Flags().IntVar(&concurrency, "concurrency", 4, "Number of parallel download workers")
 	cmd.Flags().BoolVar(&skipExisting, "skip-existing", true, "Skip downloads when target file already exists")

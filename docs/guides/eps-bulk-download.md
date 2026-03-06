@@ -35,7 +35,7 @@ Typical formats: `xml`, `html`, `pdf`, `zip`.
 ### 4. Download one document
 
 ```bash
-epo eps fetch EP1004359NWB1 --format zip --out .tmp/eps-bulk/sample/EP1004359NWB1.zip -f json -q
+epo eps fetch EP1004359NWB1 --doc-format zip --out .tmp/eps-bulk/sample/EP1004359NWB1.zip -f json -q
 ```
 
 ## Bulk Workflow
@@ -46,7 +46,7 @@ epo eps fetch EP1004359NWB1 --format zip --out .tmp/eps-bulk/sample/EP1004359NWB
 epo eps bulk \
   --max-dates 2 \
   --max-patents 200 \
-  --format zip \
+  --doc-format zip \
   --out-dir .tmp/eps-bulk \
   -f json -q
 ```
@@ -56,6 +56,7 @@ Useful flags:
 - `--date YYYYMMDD` (single date shortcut)
 - `--from-date YYYYMMDD`, `--to-date YYYYMMDD`
 - `--max-dates N` and `--max-patents N` for controlled batches
+- `--doc-format xml|html|pdf|zip`
 - `--concurrency N` for parallel downloads
 - `--skip-existing` to resume safely
 - `--index-only` to build date/patent indexes without downloading

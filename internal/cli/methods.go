@@ -723,14 +723,14 @@ func buildMethodCatalog() []methodCatalogEntry {
 				{Name: "patent-number", Required: true, Example: "EP1004359NWB1"},
 			},
 			OptionalFlags: []methodFlag{
-				{Name: "--format", Default: "xml"},
+				{Name: "--doc-format", Default: "xml"},
 				{Name: "--out", Description: "Write bytes to file"},
 				{Name: "--overwrite", Description: "Replace existing output file"},
 				{Name: "--include-body", Description: "Include base64 body in JSON output"},
 			},
 			OutputShapeHint: "EPS envelope with content metadata and optional file/body output",
 			Examples: []string{
-				"epo eps fetch EP1004359NWB1 --format zip --out .tmp/eps-bulk/sample/EP1004359NWB1.zip -f json -q",
+				"epo eps fetch EP1004359NWB1 --doc-format zip --out .tmp/eps-bulk/sample/EP1004359NWB1.zip -f json -q",
 			},
 		},
 		{
@@ -745,7 +745,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 				{Name: "--order", Default: "desc"},
 				{Name: "--max-dates", Description: "Maximum dates to process"},
 				{Name: "--max-patents", Description: "Maximum patents to index/download"},
-				{Name: "--format", Default: "zip"},
+				{Name: "--doc-format", Default: "zip"},
 				{Name: "--out-dir", Default: ".tmp/eps-bulk"},
 				{Name: "--concurrency", Default: "4"},
 				{Name: "--skip-existing", Description: "Skip files already present"},
@@ -754,7 +754,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 			},
 			OutputShapeHint: "EPS envelope with index stats, download summary, and manifest path",
 			Examples: []string{
-				"epo eps bulk --max-dates 1 --max-patents 25 --format zip --out-dir .tmp/eps-bulk -f json -q",
+				"epo eps bulk --max-dates 1 --max-patents 25 --doc-format zip --out-dir .tmp/eps-bulk -f json -q",
 			},
 		},
 		{

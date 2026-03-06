@@ -2,6 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.2.0] - 2026-03-05
+
+### Added
+- New EPS command group for European Publication Server workflows:
+  - `epo eps dates`
+  - `epo eps patents`
+  - `epo eps formats`
+  - `epo eps fetch`
+  - `epo eps bulk`
+- New `internal/eps` client package for unauthenticated EPS REST calls.
+- Bulk indexing and download workflow that writes:
+  - `indexes/publication-dates.txt`
+  - `indexes/patents/<date>.txt`
+  - `documents/<date>/<patent>.<format>`
+  - `manifest.json` summary
+- EPS bulk download guide: `docs/guides/eps-bulk-download.md`.
+- EPS reference conversion doc integrated into docs navigation.
+
+### Changed
+- Root CLI help text now documents both OPS and EPS support.
+- Methods catalog (`epo methods`) now includes full EPS command contracts and examples.
+
+### Fixed
+- Avoided output-format flag collision by using `--doc-format` for EPS fetch/bulk payload format selection.
+
+### Testing
+- Added parser tests for EPS date/patent/format extraction.
+- Added CLI tests for EPS date filtering and format/path validation.
+- Ran full test suite (`go test ./...`) successfully.
+- Verified live EPS requests and a real bulk pull into `.tmp/eps-bulk-live`.
+
 ## [0.1.0] - 2026-03-05
 
 ### Added

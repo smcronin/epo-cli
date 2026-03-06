@@ -54,8 +54,8 @@ epo usage quota -f json -q
 epo eps dates --limit 5 -f json -q
 epo eps patents 20260225 --limit 20 -f json -q
 epo eps formats EP1004359NWB1 -f json -q
-epo eps fetch EP1004359NWB1 --format zip --out .tmp/eps-bulk/sample/EP1004359NWB1.zip -f json -q
-epo eps bulk --max-dates 1 --max-patents 25 --format zip --out-dir .tmp/eps-bulk -f json -q
+epo eps fetch EP1004359NWB1 --doc-format zip --out .tmp/eps-bulk/sample/EP1004359NWB1.zip -f json -q
+epo eps bulk --max-dates 1 --max-patents 25 --doc-format zip --out-dir .tmp/eps-bulk -f json -q
 
 # CPC structured parsing
 epo cpc search --q "network routing" --normalize -f json -q
