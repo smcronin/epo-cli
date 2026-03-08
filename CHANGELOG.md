@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.3.0] - 2026-03-07
+
+### Added
+- New `epo pub recent` convenience command for date-windowed CPC/applicant/inventor searches
+- Quota and throttle warnings on stderr when approaching OPS limits (suppressed by `--quiet`)
+- Richer 404 error hints with kind code, docdb format, and `number normalize` guidance
+- `NearLimit()` and `HasBlackService()` helpers in throttle package
+
+### Changed
+- Skill docs: added recipes section, CQL field codes table, number format quick reference, CQL vs Minesoft disambiguation, NOT_FOUND disambiguation checklist
+- Release skill and `tools/release.ps1` workflow added
+
 ## [0.2.0] - 2026-03-05
 
 ### Added
