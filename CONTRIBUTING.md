@@ -38,6 +38,9 @@ go test ./tests/integration -v -count=1 -timeout 600s
 ## Release Notes
 
 The release workflow is tag-driven (`v*`) and injects binary version metadata with `-ldflags`.
+Use `powershell -ExecutionPolicy Bypass -File tools/release.ps1 -Bump patch|minor|major`
+to run tests, bump version metadata, update `CHANGELOG.md`, sync repo-owned skills,
+create the release commit/tag, and push GitHub.
 
 ## License
 

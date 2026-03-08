@@ -7,6 +7,33 @@ description: "Use this skill when working with EPO Open Patent Services (OPS) da
 
 Use this skill to run patent research and CLI QA against the local `epo` binary with reproducible commands and structured output.
 
+## Recipes
+
+**Find recent patents by a company:**
+```bash
+epo pub search --query 'pa="SAP SE" and pd within "20250101 20260307"' --summary -f json -q
+```
+
+**Get the patent family:**
+```bash
+epo family summary EP4610885A1 -f json -q
+```
+
+**Check prosecution/legal status:**
+```bash
+epo status EP.4610885.A1 --register-ref EP22198765 -f json -q
+```
+
+**Normalize a messy patent number:**
+```bash
+epo number normalize EP04610885 -f json -q
+```
+
+**Browse recent grants in a CPC class:**
+```bash
+epo pub recent --cpc G06N --days 30 --summary -f json -q
+```
+
 ## Quick Start
 
 1. Configure credentials:
@@ -14,10 +41,9 @@ Use this skill to run patent research and CLI QA against the local `epo` binary 
 - `epo config set-creds --from-dotenv .env`
 - or `epo auth configure --client-id ... --client-secret ...`
 
-2. Validate auth and inspect config:
+2. Inspect config when needed:
 ```bash
 epo config show -f json -q
-epo auth check -f json -q
 ```
 
 3. Use machine-readable output for all agent flows:
@@ -63,6 +89,7 @@ epo methods --json -f json -q
 - Prefer `legal get --flat` and `register get --summary` for diligence timelines.
 - Use `status` to merge legal + register + procedural data in one response.
 - Use `usage quota` before large fan-out runs.
+- Do not spend a turn on `epo auth check` before normal commands; the CLI already reports missing or invalid credentials.
 
 ## Reference Files
 

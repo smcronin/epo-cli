@@ -424,6 +424,56 @@
     ]
   },
   {
+    "command": "epo pub recent",
+    "service": "published-data",
+    "implemented": true,
+    "summary": "Search recent publications by CPC, applicant, inventor, or title with date window",
+    "optionalFlags": [
+      {
+        "name": "--cpc",
+        "description": "CPC class (for example: G06N)"
+      },
+      {
+        "name": "--applicant",
+        "description": "Applicant name"
+      },
+      {
+        "name": "--inventor",
+        "description": "Inventor name"
+      },
+      {
+        "name": "--title",
+        "description": "Title keyword"
+      },
+      {
+        "name": "--days",
+        "description": "Lookback window in days",
+        "default": "30"
+      },
+      {
+        "name": "--summary",
+        "description": "Return agent summary"
+      },
+      {
+        "name": "--flat",
+        "description": "Return flattened search rows"
+      },
+      {
+        "name": "--sort",
+        "default": "pub-date-desc"
+      },
+      {
+        "name": "--all",
+        "description": "Auto-paginate all results"
+      }
+    ],
+    "outputShapeHint": "Published-data envelope with search results (delegates to pub search)",
+    "examples": [
+      "epo pub recent --cpc G06N --days 30 --summary -f json -q",
+      "epo pub recent --applicant \"SAP SE\" --days 7 --summary -f json -q"
+    ]
+  },
+  {
     "command": "epo pub images inquiry",
     "service": "published-data",
     "implemented": true,

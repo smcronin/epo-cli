@@ -1,6 +1,7 @@
 package throttle
 
 import (
+	"fmt"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -105,6 +106,25 @@ func ParseRetryAfter(raw string) time.Duration {
 		return 0
 	}
 	return time.Duration(ms) * time.Millisecond
+}
+
+func (q Quota) NearLimit() (bool, string) {
+	if q.IndividualPerHourUsed >= 2500 {
+		return true, fmt.Sprintf("quota: %d/~3000 hourly requests used", q.IndividualPerHourUsed)
+	}
+	if q.RegisteredPerWeekUsed >= 45000 {
+		return true, fmt.Sprintf("quota: %d/~50000 weekly requests used", q.RegisteredPerWeekUsed)
+	}
+	return false, ""
+}
+
+func (s State) HasBlackService() (bool, string) {
+	for name, svc := range s.Services {
+		if strings.EqualFold(svc.Color, "black") {
+			return true, fmt.Sprintf("throttle: %s service is overloaded (black)", name)
+		}
+	}
+	return false, ""
 }
 
 func parseInt(raw string) int {

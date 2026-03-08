@@ -84,10 +84,23 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download Build Artifacts
         uses: actions/download-artifact@v4
         with:
           path: dist
+
+      - name: Package Skills Bundle
+        run: |
+          set -euo pipefail
+          mkdir -p dist/skill-bundle
+          cp -R skills dist/skill-bundle/
+          (
+            cd dist/skill-bundle
+            zip -qr "../epo-cli-skills_${GITHUB_REF_NAME}.zip" skills
+          )
 
       - name: Assemble Checksums
         run: |

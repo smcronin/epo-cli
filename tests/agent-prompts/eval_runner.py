@@ -153,7 +153,7 @@ def run_command(args: list[str], cwd: Optional[Path] = None) -> tuple[int, str, 
     return proc.returncode, proc.stdout, proc.stderr
 
 
-def preflight_check(epo_bin: str, skip_auth_check: bool) -> None:
+def preflight_check(epo_bin: str) -> None:
     skill_path = REPO_ROOT / "skills" / "epo" / "SKILL.md"
     if not skill_path.exists():
         raise RuntimeError(f"Missing skill file: {skill_path}")
@@ -164,30 +164,6 @@ def preflight_check(epo_bin: str, skip_auth_check: bool) -> None:
             "Could not run `epo --version`. Ensure epo binary is built and on PATH.\n"
             f"stdout: {out.strip()}\n"
             f"stderr: {err.strip()}"
-        )
-
-    if skip_auth_check:
-        return
-
-    code, out, err = run_command([epo_bin, "config", "show", "-f", "json", "-q"])
-    if code != 0:
-        raise RuntimeError(
-            "Could not run `epo config show -f json -q` for auth preflight.\n"
-            f"stdout: {out.strip()}\n"
-            f"stderr: {err.strip()}"
-        )
-    try:
-        payload = json.loads(out)
-        configured = bool(payload.get("results", {}).get("configured", False))
-    except Exception as exc:
-        raise RuntimeError(f"Failed to parse config preflight JSON: {exc}") from exc
-
-    if not configured:
-        raise RuntimeError(
-            "EPO credentials are not configured. Run:\n"
-            "  epo config set-creds --from-env\n"
-            "or\n"
-            "  epo config set-creds <client-id> <client-secret>"
         )
 
 
@@ -357,8 +333,7 @@ def main() -> None:
         help="Path to frix-agent repo (or set FRIX_ROOT)",
     )
     parser.add_argument("--epo-bin", type=str, default="epo", help="EPO binary name/path (default: epo)")
-    parser.add_argument("--skip-preflight", action="store_true", help="Skip preflight checks (skill, binary, auth)")
-    parser.add_argument("--skip-auth-check", action="store_true", help="Skip credential configured check")
+    parser.add_argument("--skip-preflight", action="store_true", help="Skip preflight checks (skill and binary)")
     args = parser.parse_args()
 
     try:
@@ -373,7 +348,7 @@ def main() -> None:
 
     if not args.skip_preflight:
         try:
-            preflight_check(args.epo_bin, args.skip_auth_check)
+            preflight_check(args.epo_bin)
         except Exception as exc:
             print(f"Preflight failed: {exc}", file=sys.stderr)
             sys.exit(1)

@@ -46,6 +46,7 @@ func newPubCmd() *cobra.Command {
 	pubCmd.AddCommand(newPubImagesCmd())
 	pubCmd.AddCommand(newPubEquivalentsCmd())
 	pubCmd.AddCommand(newPubSearchCmd())
+	pubCmd.AddCommand(newPubRecentCmd())
 	return pubCmd
 }
 
@@ -368,6 +369,90 @@ echo "applicant=IBM" | epo pub search --stdin --all --table
 	cmd.Flags().BoolVar(&enrichMode, "enrich", false, "Ensure biblio-enriched fields (title/pubDate) in flat output")
 	cmd.Flags().BoolVar(&summaryMode, "summary", false, "Return agent summary: {query,total,topResults}")
 	cmd.Flags().StringVar(&flatPick, "flat-pick", "", "Shorthand: enables --flat --enrich and sets --pick when provided")
+	return cmd
+}
+
+func newPubRecentCmd() *cobra.Command {
+	var (
+		cpc         string
+		applicant   string
+		inventor    string
+		title       string
+		days        int
+		summaryMode bool
+		flatMode    bool
+		sortModeRaw string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "recent",
+		Short: "Search recent publications by CPC, applicant, inventor, or title",
+		Example: strings.TrimSpace(`
+epo pub recent --cpc G06N --days 30 --summary -f json -q
+epo pub recent --applicant "SAP SE" --days 7 --summary -f json -q
+epo pub recent --cpc H04L --inventor "Smith" --days 14 -f json -q
+`),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			parts := []string{}
+			if cpc != "" {
+				parts = append(parts, fmt.Sprintf("cpc=%s", cpc))
+			}
+			if applicant != "" {
+				parts = append(parts, fmt.Sprintf("pa=\"%s\"", applicant))
+			}
+			if inventor != "" {
+				parts = append(parts, fmt.Sprintf("in=\"%s\"", inventor))
+			}
+			if title != "" {
+				parts = append(parts, fmt.Sprintf("ti=\"%s\"", title))
+			}
+			if len(parts) == 0 {
+				return &epoerrors.CLIError{
+					Code:    400,
+					Type:    "VALIDATION_ERROR",
+					Message: "at least one filter is required",
+					Hint:    "Use --cpc, --applicant, --inventor, or --title",
+				}
+			}
+
+			end := time.Now()
+			start := end.AddDate(0, 0, -days)
+			dateRange := fmt.Sprintf("pd within \"%s %s\"", start.Format("20060102"), end.Format("20060102"))
+			parts = append(parts, dateRange)
+			query := strings.Join(parts, " and ")
+
+			sortMode, err := normalizePubSearchSort(sortModeRaw)
+			if err != nil {
+				return &epoerrors.CLIError{
+					Code:    400,
+					Type:    "VALIDATION_ERROR",
+					Message: err.Error(),
+					Hint:    "Use --sort none, pub-date-asc, or pub-date-desc",
+				}
+			}
+
+			constituents := "biblio"
+			if summaryMode {
+				return runPublishedSearchSummary(cmd, []string{query}, constituents, "", false, sortMode, flagAll)
+			}
+			if flagAll {
+				return runPublishedSearchAll(cmd, []string{query}, constituents, "", false, sortMode, flatMode)
+			}
+			if flatMode {
+				return runPublishedSearchFlat(cmd, []string{query}, constituents, "", false, sortMode)
+			}
+			return runPublishedSearchFlat(cmd, []string{query}, constituents, "", false, sortMode)
+		},
+	}
+
+	cmd.Flags().StringVar(&cpc, "cpc", "", "CPC class (for example: G06N)")
+	cmd.Flags().StringVar(&applicant, "applicant", "", "Applicant name")
+	cmd.Flags().StringVar(&inventor, "inventor", "", "Inventor name")
+	cmd.Flags().StringVar(&title, "title", "", "Title keyword")
+	cmd.Flags().IntVar(&days, "days", 30, "Lookback window in days")
+	cmd.Flags().BoolVar(&summaryMode, "summary", false, "Return agent summary")
+	cmd.Flags().BoolVar(&flatMode, "flat", false, "Return flattened search rows")
+	cmd.Flags().StringVar(&sortModeRaw, "sort", "pub-date-desc", "Sort: none, pub-date-asc, pub-date-desc")
 	return cmd
 }
 

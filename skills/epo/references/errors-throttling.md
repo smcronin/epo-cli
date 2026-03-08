@@ -34,9 +34,8 @@
 ## Retry Policy
 
 1. `AUTH_FAILURE`:
-- run `epo auth check -f json -q`
 - refresh credential source
-- retry once
+- retry the original command once after fixing credentials
 
 2. `RATE_LIMITED`:
 - honor `Retry-After` when present
@@ -50,6 +49,11 @@
 4. `NOT_FOUND`:
 - stop retrying
 - report exact reference and endpoint
+- **Disambiguation checklist:**
+  - Missing kind code? Try A1, A2, B1, B2
+  - Wrong format? Run `epo number normalize <ref>`
+  - Endpoint mismatch? `register events` needs application epodoc, not publication
+  - Patent genuinely doesn't exist in OPS? Check via `epo pub search --query 'pn=<number>'`
 
 ## Safe Agent Behavior
 

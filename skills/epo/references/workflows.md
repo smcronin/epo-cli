@@ -2,10 +2,9 @@
 
 ## 1. Preflight Session
 
-1. Confirm auth and config:
+1. Confirm config only when needed:
 ```bash
 epo config show -f json -q
-epo auth check -f json -q
 ```
 2. Confirm quota/throttle baseline:
 ```bash

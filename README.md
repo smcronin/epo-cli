@@ -114,8 +114,17 @@ Stable JSON envelope:
 
 - Tag format: `v*` (for example `v0.1.0`)
 - GitHub Actions release workflow cross-builds linux/darwin/windows archives
+- GitHub releases also attach a `epo-cli-skills_<tag>.zip` bundle built from repo `skills/`
 - Binary version is injected at build time via ldflags:
   `-X github.com/smcronin/epo-cli/internal/cli.version=<tag>`
+- Preferred local release entrypoint:
+  `powershell -ExecutionPolicy Bypass -File tools/release.ps1 -Bump patch`
+- The release script rebuilds:
+  - repo-local `epo.exe`
+  - the PATH-installed `epo.exe` in Go's `bin` directory
+- The release script syncs repo-owned skills to:
+  - `%USERPROFILE%\.claude\skills`
+  - sibling `frix-agent\.claude\skills`
 
 ## Development
 

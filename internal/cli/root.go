@@ -13,6 +13,7 @@ import (
 	"time"
 
 	epoerrors "github.com/smcronin/epo-cli/internal/errors"
+	"github.com/smcronin/epo-cli/internal/throttle"
 	"github.com/spf13/cobra"
 )
 
@@ -105,15 +106,16 @@ func Execute() {
 func outputSuccess(cmd *cobra.Command, data any) error {
 	env := buildSuccessEnvelope(cmd, data)
 
+	var writeErr error
 	switch flagFormat {
 	case "json":
-		return writeJSON(env)
+		writeErr = writeJSON(env)
 	case "ndjson":
-		return writeNDJSON(env)
+		writeErr = writeNDJSON(env)
 	case "csv":
-		return writeCSV(env)
+		writeErr = writeCSV(env)
 	case "table":
-		return writeTable(env)
+		writeErr = writeTable(env)
 	default:
 		return &epoerrors.CLIError{
 			Code:    400,
@@ -122,6 +124,14 @@ func outputSuccess(cmd *cobra.Command, data any) error {
 			Hint:    "Use --format json, ndjson, csv, or table",
 		}
 	}
+	if writeErr != nil {
+		return writeErr
+	}
+
+	if !flagQuiet {
+		emitQuotaWarnings(env)
+	}
+	return nil
 }
 
 func buildSuccessEnvelope(cmd *cobra.Command, data any) successEnvelope {
@@ -947,16 +957,11 @@ func mapError(err error) *epoerrors.CLIError {
 				Hint:    "Verify client credentials via `epo auth check`",
 			}
 		case apiErr.StatusCode == 404:
-			hint := ""
-			msg := strings.ToLower(apiErr.Error() + " " + apiErr.Body)
-			if strings.Contains(msg, "claims") || strings.Contains(msg, "description") {
-				hint = "Try docdb format with dot-separated reference, for example EP.1000000.A1 --input-format docdb."
-			}
 			return &epoerrors.CLIError{
 				Code:    apiErr.StatusCode,
 				Type:    "NOT_FOUND",
 				Message: apiErr.Error(),
-				Hint:    hint,
+				Hint:    build404Hint(apiErr.Error(), apiErr.Body),
 			}
 		case apiErr.StatusCode == 429:
 			return &epoerrors.CLIError{
@@ -1005,4 +1010,34 @@ func mapExitCode(err *epoerrors.CLIError) int {
 	default:
 		return epoerrors.ExitGeneralError
 	}
+}
+
+func emitQuotaWarnings(env successEnvelope) {
+	if env.Quota != nil {
+		if qMap, ok := env.Quota.(map[string]int); ok {
+			q := throttle.Quota{
+				IndividualPerHourUsed: qMap["hourUsed"],
+				RegisteredPerWeekUsed: qMap["weekUsed"],
+			}
+			if near, msg := q.NearLimit(); near {
+				fmt.Fprintf(os.Stderr, "warning: %s\n", msg)
+			}
+		}
+	}
+	if env.Throttle != nil {
+		if tMap, ok := env.Throttle.(map[string]any); ok {
+			if services, ok := tMap["services"].(map[string]throttle.ServiceState); ok {
+				s := throttle.State{Services: services}
+				if black, msg := s.HasBlackService(); black {
+					fmt.Fprintf(os.Stderr, "warning: %s\n", msg)
+				}
+			}
+		}
+	}
+}
+
+func build404Hint(msg string, body string) string {
+	return "Patent not found. Verify the number and kind code (A1/A2/B1/B2). " +
+		"For claims/description, use docdb format (EP.1000000.A1 --input-format docdb). " +
+		"Run: epo number normalize <ref>"
 }

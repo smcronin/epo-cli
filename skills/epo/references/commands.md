@@ -8,11 +8,7 @@ Use `epo methods --json -f json -q` as the authoritative contract for command/fl
 ```bash
 epo config show -f json -q
 ```
-2. Validate auth:
-```bash
-epo auth check -f json -q
-```
-3. Check quota before broad jobs:
+2. Check quota before broad jobs:
 ```bash
 epo usage quota -f json -q
 ```

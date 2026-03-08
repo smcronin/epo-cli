@@ -288,6 +288,28 @@ func buildMethodCatalog() []methodCatalogEntry {
 			},
 		},
 		{
+			Command:     "epo pub recent",
+			Service:     "published-data",
+			Implemented: true,
+			Summary:     "Search recent publications by CPC, applicant, inventor, or title with date window",
+			OptionalFlags: []methodFlag{
+				{Name: "--cpc", Description: "CPC class (for example: G06N)"},
+				{Name: "--applicant", Description: "Applicant name"},
+				{Name: "--inventor", Description: "Inventor name"},
+				{Name: "--title", Description: "Title keyword"},
+				{Name: "--days", Default: "30", Description: "Lookback window in days"},
+				{Name: "--summary", Description: "Return agent summary"},
+				{Name: "--flat", Description: "Return flattened search rows"},
+				{Name: "--sort", Default: "pub-date-desc"},
+				{Name: "--all", Description: "Auto-paginate all results"},
+			},
+			OutputShapeHint: "Published-data envelope with search results (delegates to pub search)",
+			Examples: []string{
+				"epo pub recent --cpc G06N --days 30 --summary -f json -q",
+				"epo pub recent --applicant \"SAP SE\" --days 7 --summary -f json -q",
+			},
+		},
+		{
 			Command:     "epo pub images inquiry",
 			Service:     "published-data",
 			Implemented: true,
