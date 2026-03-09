@@ -6,3 +6,7 @@ config.yaml
 config.json
 .tmp/
 dist/
+
+# Maintainer-only release tooling (local paths, not for OSS consumers)
+skills/release/
+tools/release.ps1
