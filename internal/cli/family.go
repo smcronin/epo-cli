@@ -35,21 +35,11 @@ func newFamilyGetCmd() *cobra.Command {
 		Long:  "Fetch INPADOC family data. Some family members may only include publication-reference data without exchange-document nodes.",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !isOneOf(refType, "publication", "application", "priority") {
-				return &epoerrors.CLIError{
-					Code:    400,
-					Type:    "VALIDATION_ERROR",
-					Message: fmt.Sprintf("unsupported --ref-type %q", refType),
-					Hint:    "Use publication, application, or priority",
-				}
+			if err := validateRefType(refType); err != nil {
+				return err
 			}
-			if !isOneOf(inputFormat, "docdb", "epodoc") {
-				return &epoerrors.CLIError{
-					Code:    400,
-					Type:    "VALIDATION_ERROR",
-					Message: fmt.Sprintf("unsupported --input-format %q", inputFormat),
-					Hint:    "Use docdb or epodoc",
-				}
+			if err := validateInputFormat(inputFormat, "Use docdb or epodoc", "docdb", "epodoc"); err != nil {
+				return err
 			}
 			if strings.TrimSpace(constituents) != "" && !isOneOf(constituents, "biblio", "legal", "biblio,legal") {
 				return &epoerrors.CLIError{
@@ -131,27 +121,12 @@ func runFamilyFlat(cmd *cobra.Command, references []string, refType, inputFormat
 		})
 	}
 
-	if len(results) == 1 {
-		single := results[0]
-		if ok, _ := single["ok"].(bool); ok {
-			return outputSuccess(cmd, responsePayload{
-				Service: "family",
-				Results: single["results"],
-				Warnings: func() []string {
-					return toStringSlice(single["warnings"])
-				}(),
-			})
+	return finishBatch(cmd, "family", results, func(single map[string]any) responsePayload {
+		return responsePayload{
+			Service:  "family",
+			Results:  single["results"],
+			Warnings: toStringSlice(single["warnings"]),
 		}
-		return &epoerrors.CLIError{
-			Code:    1,
-			Type:    "GENERAL_ERROR",
-			Message: fmt.Sprintf("%v", single["error"]),
-		}
-	}
-
-	return outputSuccess(cmd, responsePayload{
-		Service: "family",
-		Results: results,
 	})
 }
 
@@ -219,23 +194,10 @@ func runFamilySummary(cmd *cobra.Command, references []string, refType, inputFor
 		})
 	}
 
-	if len(summaries) == 1 {
-		single := summaries[0]
-		if ok, _ := single["ok"].(bool); ok {
-			return outputSuccess(cmd, responsePayload{
-				Service: "family",
-				Results: single,
-			})
+	return finishBatch(cmd, "family", summaries, func(single map[string]any) responsePayload {
+		return responsePayload{
+			Service: "family",
+			Results: single,
 		}
-		return &epoerrors.CLIError{
-			Code:    1,
-			Type:    "GENERAL_ERROR",
-			Message: fmt.Sprintf("%v", single["error"]),
-		}
-	}
-
-	return outputSuccess(cmd, responsePayload{
-		Service: "family",
-		Results: summaries,
 	})
 }

@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"net/http"
-	"net/url"
 	"regexp"
 	"sort"
 	"strings"
@@ -181,27 +180,12 @@ func runRegisterGetSummary(cmd *cobra.Command, references []string, constituents
 		})
 	}
 
-	if len(results) == 1 {
-		single := results[0]
-		if ok, _ := single["ok"].(bool); ok {
-			return outputSuccess(cmd, responsePayload{
-				Service: "register",
-				Results: single["summary"],
-				Warnings: func() []string {
-					return toStringSlice(single["warnings"])
-				}(),
-			})
+	return finishBatch(cmd, "register", results, func(single map[string]any) responsePayload {
+		return responsePayload{
+			Service:  "register",
+			Results:  single["summary"],
+			Warnings: toStringSlice(single["warnings"]),
 		}
-		return &epoerrors.CLIError{
-			Code:    1,
-			Type:    "GENERAL_ERROR",
-			Message: fmt.Sprintf("%v", single["error"]),
-		}
-	}
-
-	return outputSuccess(cmd, responsePayload{
-		Service: "register",
-		Results: results,
 	})
 }
 
@@ -454,34 +438,8 @@ func newRegisterSearchCmd() *cobra.Command {
 			}
 
 			return runOPSBatch(cmd, "register", queries, func(inputQuery string) (api.Request, map[string]any, error) {
-				request := api.Request{
-					Method: http.MethodGet,
-					Path:   "/register/search",
-					Accept: "application/json",
-				}
-				if v := strings.TrimSpace(rangeHeader); v != "" {
-					request.Headers = map[string]string{
-						"Range": v,
-					}
-				}
-				if usePost {
-					request.Method = http.MethodPost
-					request.ContentType = "text/plain"
-					request.Body = []byte("q=" + url.QueryEscape(inputQuery))
-				} else {
-					request.Query = url.Values{}
-					request.Query.Set("q", inputQuery)
-				}
-
-				requestMeta := map[string]any{
-					"method": request.Method,
-					"path":   request.Path,
-					"query":  compactQuery(request.Query),
-				}
-				if len(request.Headers) > 0 {
-					requestMeta["headers"] = request.Headers
-				}
-				return request, requestMeta, nil
+				request := buildSearchRequest("/register/search", inputQuery, rangeHeader, usePost)
+				return request, searchRequestMeta(request), nil
 			}, nil)
 		},
 	}
@@ -515,22 +473,7 @@ func runRegisterSearchAll(cmd *cobra.Command, queries []string, rangeHeader stri
 		var quotaSnapshot any
 
 		for {
-			request := api.Request{
-				Method: http.MethodGet,
-				Path:   "/register/search",
-				Accept: "application/json",
-				Headers: map[string]string{
-					"Range": fmt.Sprintf("%d-%d", currentStart, currentEnd),
-				},
-			}
-			if usePost {
-				request.Method = http.MethodPost
-				request.ContentType = "text/plain"
-				request.Body = []byte("q=" + url.QueryEscape(q))
-			} else {
-				request.Query = url.Values{}
-				request.Query.Set("q", q)
-			}
+			request := buildSearchRequest("/register/search", q, fmt.Sprintf("%d-%d", currentStart, currentEnd), usePost)
 
 			resp, err := executeOPSRequest(cmd.Context(), request)
 			if err != nil {
@@ -542,15 +485,8 @@ func runRegisterSearchAll(cmd *cobra.Command, queries []string, rangeHeader stri
 				break
 			}
 			pages++
-			throttleSnapshot = map[string]any{
-				"system":   resp.Metadata.Throttle.System,
-				"services": resp.Metadata.Throttle.Services,
-			}
-			quotaSnapshot = map[string]int{
-				"hourUsed":       resp.Metadata.Quota.IndividualPerHourUsed,
-				"weekUsed":       resp.Metadata.Quota.RegisteredPerWeekUsed,
-				"payingWeekUsed": resp.Metadata.Quota.RegisteredPayingPerWeekUsed,
-			}
+			throttleSnapshot = throttleEnvelope(resp)
+			quotaSnapshot = quotaEnvelope(resp)
 
 			parsed, warnings := parseJSONBody(resp.Body)
 			combinedWarnings = append(combinedWarnings, warnings...)
@@ -586,30 +522,7 @@ func runRegisterSearchAll(cmd *cobra.Command, queries []string, rangeHeader stri
 		}
 	}
 
-	if len(batchResults) == 1 {
-		single := batchResults[0]
-		if ok, _ := single["ok"].(bool); ok {
-			return outputSuccess(cmd, responsePayload{
-				Service:    "register",
-				Request:    single["request"],
-				Pagination: single["pagination"],
-				Throttle:   single["throttle"],
-				Quota:      single["quota"],
-				Results:    single["results"],
-				Warnings:   toStringSlice(single["warnings"]),
-			})
-		}
-		return &epoerrors.CLIError{
-			Code:    1,
-			Type:    "GENERAL_ERROR",
-			Message: fmt.Sprintf("%v", single["error"]),
-		}
-	}
-
-	return outputSuccess(cmd, responsePayload{
-		Service: "register",
-		Results: batchResults,
-	})
+	return finishBatch(cmd, "register", batchResults, searchBatchPayload("register"))
 }
 
 func extractRegisterSearchItems(parsed any) ([]any, bool) {
@@ -618,9 +531,9 @@ func extractRegisterSearchItems(parsed any) ([]any, bool) {
 		return nil, false
 	}
 
-	world := asMap(root["ops:world-patent-data"])
-	search := asMap(world["ops:register-search"])
-	documents := asMap(search["reg:register-documents"])
+	world := asAnyMap(root["ops:world-patent-data"])
+	search := asAnyMap(world["ops:register-search"])
+	documents := asAnyMap(search["reg:register-documents"])
 	itemsRaw, ok := documents["reg:register-document"]
 	if !ok {
 		return nil, false

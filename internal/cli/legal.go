@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/smcronin/epo-cli/internal/api"
-	epoerrors "github.com/smcronin/epo-cli/internal/errors"
 	"github.com/spf13/cobra"
 )
 
@@ -33,21 +32,11 @@ func newLegalGetCmd() *cobra.Command {
 		Short: "Fetch legal status events for a reference",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !isOneOf(refType, "publication", "application", "priority") {
-				return &epoerrors.CLIError{
-					Code:    400,
-					Type:    "VALIDATION_ERROR",
-					Message: fmt.Sprintf("unsupported --ref-type %q", refType),
-					Hint:    "Use publication, application, or priority",
-				}
+			if err := validateRefType(refType); err != nil {
+				return err
 			}
-			if !isOneOf(inputFormat, "docdb", "epodoc") {
-				return &epoerrors.CLIError{
-					Code:    400,
-					Type:    "VALIDATION_ERROR",
-					Message: fmt.Sprintf("unsupported --input-format %q", inputFormat),
-					Hint:    "Use docdb or epodoc",
-				}
+			if err := validateInputFormat(inputFormat, "Use docdb or epodoc", "docdb", "epodoc"); err != nil {
+				return err
 			}
 
 			references, err := resolveSingleOrStdinInputs(args)
@@ -120,27 +109,12 @@ func runLegalFlat(cmd *cobra.Command, references []string, refType, inputFormat 
 		})
 	}
 
-	if len(results) == 1 {
-		single := results[0]
-		if ok, _ := single["ok"].(bool); ok {
-			return outputSuccess(cmd, responsePayload{
-				Service: "legal",
-				Results: single["results"],
-				Warnings: func() []string {
-					return toStringSlice(single["warnings"])
-				}(),
-			})
+	return finishBatch(cmd, "legal", results, func(single map[string]any) responsePayload {
+		return responsePayload{
+			Service:  "legal",
+			Results:  single["results"],
+			Warnings: toStringSlice(single["warnings"]),
 		}
-		return &epoerrors.CLIError{
-			Code:    1,
-			Type:    "GENERAL_ERROR",
-			Message: fmt.Sprintf("%v", single["error"]),
-		}
-	}
-
-	return outputSuccess(cmd, responsePayload{
-		Service: "legal",
-		Results: results,
 	})
 }
 

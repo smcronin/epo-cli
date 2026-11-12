@@ -60,17 +60,10 @@ func runOPSBatch(cmd *cobra.Command, service string, inputs []string, build requ
 			"ok":         true,
 			"request":    requestMeta,
 			"pagination": pagination,
-			"throttle": map[string]any{
-				"system":   resp.Metadata.Throttle.System,
-				"services": resp.Metadata.Throttle.Services,
-			},
-			"quota": map[string]int{
-				"hourUsed":       resp.Metadata.Quota.IndividualPerHourUsed,
-				"weekUsed":       resp.Metadata.Quota.RegisteredPerWeekUsed,
-				"payingWeekUsed": resp.Metadata.Quota.RegisteredPayingPerWeekUsed,
-			},
-			"results":  parsed,
-			"warnings": warnings,
+			"throttle":   throttleEnvelope(resp),
+			"quota":      quotaEnvelope(resp),
+			"results":    parsed,
+			"warnings":   warnings,
 		}
 		results = append(results, item)
 	}

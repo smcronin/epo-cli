@@ -214,17 +214,10 @@ func newCPCMediaCmd() *cobra.Command {
 			}
 
 			payload := responsePayload{
-				Service: "classification/cpc",
-				Request: requestMeta,
-				Throttle: map[string]any{
-					"system":   resp.Metadata.Throttle.System,
-					"services": resp.Metadata.Throttle.Services,
-				},
-				Quota: map[string]int{
-					"hourUsed":       resp.Metadata.Quota.IndividualPerHourUsed,
-					"weekUsed":       resp.Metadata.Quota.RegisteredPerWeekUsed,
-					"payingWeekUsed": resp.Metadata.Quota.RegisteredPayingPerWeekUsed,
-				},
+				Service:  "classification/cpc",
+				Request:  requestMeta,
+				Throttle: throttleEnvelope(resp),
+				Quota:    quotaEnvelope(resp),
 				Results:  results,
 				Warnings: warnings,
 			}
@@ -340,17 +333,10 @@ func outputCPCResponse(cmd *cobra.Command, requestMeta map[string]any, resp api.
 		warningsOut = append(warningsOut, "Use --format json without --normalize to inspect full payload.")
 	}
 	return outputSuccess(cmd, responsePayload{
-		Service: "classification/cpc",
-		Request: requestMeta,
-		Throttle: map[string]any{
-			"system":   resp.Metadata.Throttle.System,
-			"services": resp.Metadata.Throttle.Services,
-		},
-		Quota: map[string]int{
-			"hourUsed":       resp.Metadata.Quota.IndividualPerHourUsed,
-			"weekUsed":       resp.Metadata.Quota.RegisteredPerWeekUsed,
-			"payingWeekUsed": resp.Metadata.Quota.RegisteredPayingPerWeekUsed,
-		},
+		Service:  "classification/cpc",
+		Request:  requestMeta,
+		Throttle: throttleEnvelope(resp),
+		Quota:    quotaEnvelope(resp),
 		Results:  normalized,
 		Warnings: warningsOut,
 	})
