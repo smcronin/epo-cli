@@ -420,25 +420,6 @@ func sortedSet(values map[string]struct{}) []string {
 	return out
 }
 
-func collectStringValuesByKey(v any, key string, out map[string]struct{}) {
-	switch t := v.(type) {
-	case map[string]any:
-		for k, child := range t {
-			if k == key {
-				value := textValue(child)
-				if value != "" {
-					out[value] = struct{}{}
-				}
-			}
-			collectStringValuesByKey(child, key, out)
-		}
-	case []any:
-		for _, child := range t {
-			collectStringValuesByKey(child, key, out)
-		}
-	}
-}
-
 func newRegisterSearchCmd() *cobra.Command {
 	var (
 		query       string

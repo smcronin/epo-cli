@@ -66,3 +66,20 @@ EP4703890A1
 ```bash
 epo raw get "/published-data/search" --query q=applicant=IBM -f json -q
 ```
+
+9. "EP publication files / bulk download" (European Publication Server, no OPS credentials needed):
+```bash
+epo eps dates --limit 5 -f json -q
+epo eps patents 20260225 --limit 20 -f json -q
+epo eps formats EP1004359NWB1 -f json -q
+epo eps fetch EP1004359NWB1 --doc-format zip --out .tmp/eps-bulk/sample/EP1004359NWB1.zip -f json -q
+epo eps bulk --max-dates 1 --max-patents 25 --doc-format zip --out-dir .tmp/eps-bulk -f json -q
+```
+`eps` patent numbers use the publication-server form (country + number + correction + kind, for example `EP1004359NWB1`). `eps bulk --dry-run` or `--index-only` builds the indexes without downloading documents.
+
+10. "Check for or install a newer CLI":
+```bash
+epo update --check -f json -q
+epo update -f json -q
+```
+`epo update` downloads the release for this OS/architecture from GitHub and verifies its checksum; on Windows the replacement is applied after the process exits.

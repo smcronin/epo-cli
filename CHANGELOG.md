@@ -2,6 +2,31 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- `epo pub search --summary` and `epo pub recent --summary` no longer exit 0 with a fake `ok:true, total:0` row when the query fails; the error is returned
+- Flat, summary and `--all` modes of `pub`, `family`, `legal`, `number` and `register` return the original typed error, so exit codes 3 (auth), 4 (not found) and 5 (rate limited) are reachable instead of `GENERAL_ERROR` / exit 1
+- `epo update` extracts the `epo_<os>_<arch>[.exe]` binary that release archives actually contain
+- `epo pub search --all` stops at the OPS ceiling of 2000 results per query (with a warning) instead of requesting past it
+- `epo register search --all` stops on the reported total, so a result count that is an exact multiple of the page size no longer fails; `epo register search` now reports `pagination.total` / `hasMore`
+- A mistyped subcommand (`epo pub bogus`) is a usage error with the JSON error envelope instead of help text and exit 0; unknown flags and wrong argument counts exit 2 instead of 1
+- An unsupported `--format` is rejected before any OPS call or `--out` write
+- A 429 whose `Retry-After` exceeds the remaining `--timeout` returns `RATE_LIMITED` (exit 5) with the wait in the hint instead of `context deadline exceeded`
+- Quota warnings treat the OPS quota headers as bytes (about 450 MB per hour, 4 GB per week) instead of request counts, so ordinary responses no longer warn
+- Register table/csv/ndjson rows keep publication and status fields when OPS returns `reg:publication-reference` or `reg:ep-patent-status` as arrays
+- `--kind` is attached unless the reference already ends with that kind code (`CA2000000 --kind C` used to drop it)
+- `epo register upp` and `epo status` no longer treat a kindless 7-digit EP publication number as an application number
+
+### Changed
+- `--all` without `--range` requests 100 results per page (the OPS maximum) instead of 25
+- One OAuth token is requested per process and reused across OPS requests
+- `epo methods` describes the default cpc output accurately; skill docs now cover the `eps` and `update` command groups
+- Removed unused code and merged duplicated request, envelope and batch-output blocks into shared helpers
+
+### Testing
+- Added offline tests that run command paths through a stub HTTP transport (errors, pagination, usage errors, token reuse) and a synthetic-archive test for `epo update`
+
 ## [0.3.0] - 2026-03-07
 
 ### Added
@@ -12,7 +37,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - Skill docs: added recipes section, CQL field codes table, number format quick reference, CQL vs Minesoft disambiguation, NOT_FOUND disambiguation checklist
-- Release skill and `tools/release.ps1` workflow added
+- Maintainer-only release tooling added (kept local, not part of the repository)
 
 ## [0.2.0] - 2026-03-05
 

@@ -63,6 +63,8 @@ epo methods --json -f json -q
 - family/legal/register timeline
 - CPC/number conversion
 - usage/quota diagnostics
+- EP publication files and bulk download (`epo eps`, no OPS credentials needed)
+- CLI maintenance (`epo update --check`)
 
 2. Pick the smallest command that answers the question.
 
