@@ -108,14 +108,32 @@ func ParseRetryAfter(raw string) time.Duration {
 	return time.Duration(ms) * time.Millisecond
 }
 
+// OPS reports quota usage in bytes of response data, not request counts. The
+// OPS reference guide enforces its 1 Mbps rule as roughly 450 MB per rolling
+// hour, and the fair use charter allows registered non-paying users 4 GB per
+// calendar week.
+const (
+	HourlyQuotaBytes int64 = 450_000_000
+	WeeklyQuotaBytes int64 = 4_000_000_000
+
+	nearLimitPercent = 90
+)
+
 func (q Quota) NearLimit() (bool, string) {
-	if q.IndividualPerHourUsed >= 2500 {
-		return true, fmt.Sprintf("quota: %d/~3000 hourly requests used", q.IndividualPerHourUsed)
+	if used := int64(q.IndividualPerHourUsed); used*100 >= HourlyQuotaBytes*nearLimitPercent {
+		return true, fmt.Sprintf("quota: %s of ~%s hourly data quota used", formatBytes(used), formatBytes(HourlyQuotaBytes))
 	}
-	if q.RegisteredPerWeekUsed >= 45000 {
-		return true, fmt.Sprintf("quota: %d/~50000 weekly requests used", q.RegisteredPerWeekUsed)
+	if used := int64(q.RegisteredPerWeekUsed); used*100 >= WeeklyQuotaBytes*nearLimitPercent {
+		return true, fmt.Sprintf("quota: %s of ~%s weekly data quota used", formatBytes(used), formatBytes(WeeklyQuotaBytes))
 	}
 	return false, ""
+}
+
+func formatBytes(n int64) string {
+	if n >= 1_000_000_000 {
+		return fmt.Sprintf("%.2f GB", float64(n)/1e9)
+	}
+	return fmt.Sprintf("%.0f MB", float64(n)/1e6)
 }
 
 func (s State) HasBlackService() (bool, string) {

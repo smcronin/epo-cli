@@ -144,6 +144,7 @@ func (c *Client) Do(ctx context.Context, req Request) (Response, error) {
 			StatusCode: httpResp.StatusCode,
 			Message:    "OPS request failed",
 			Body:       shortBody(body, 1000),
+			RetryAfter: metadata.RetryAfter,
 		}
 
 		if !shouldRetry(httpResp.StatusCode) || attempt >= c.maxRetries {
@@ -151,6 +152,11 @@ func (c *Client) Do(ctx context.Context, req Request) (Response, error) {
 		}
 
 		delay := c.retryDelay(attempt, metadata.RetryAfter)
+		if !fitsDeadline(ctx, delay) {
+			// Waiting would outlive the caller's deadline; report the API
+			// error (with its Retry-After) instead of a context timeout.
+			return resp, lastErr
+		}
 		if sleepErr := c.sleep(ctx, delay); sleepErr != nil {
 			return Response{}, sleepErr
 		}
@@ -200,6 +206,11 @@ func (c *Client) sleep(ctx context.Context, d time.Duration) error {
 	case <-t.C:
 		return nil
 	}
+}
+
+func fitsDeadline(ctx context.Context, delay time.Duration) bool {
+	deadline, ok := ctx.Deadline()
+	return !ok || time.Until(deadline) > delay
 }
 
 func shouldRetry(statusCode int) bool {

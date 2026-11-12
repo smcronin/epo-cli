@@ -149,3 +149,25 @@ func TestOPSRequestsReuseOneToken(t *testing.T) {
 		t.Fatalf("expected one token request for three OPS calls, got %d", stub.tokenCalls)
 	}
 }
+
+func TestRetryAfterBeyondDeadlineIsRateLimited(t *testing.T) {
+	stub := installOPSStub(t, func(req *http.Request) (int, http.Header, string) {
+		return http.StatusTooManyRequests, http.Header{"Retry-After": {"60000"}}, `<error><code>429</code></error>`
+	})
+	setGlobalFlag(t, &flagTimeout, 2)
+
+	_, err := runForTest(t, newFamilyCmd(), "get", "EP.1000000.A1")
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	cliErr := mapError(err)
+	if cliErr.Type != "RATE_LIMITED" || mapExitCode(cliErr) != epoerrors.ExitRateLimited {
+		t.Fatalf("expected RATE_LIMITED/exit 5, got %s/exit %d (%s)", cliErr.Type, mapExitCode(cliErr), cliErr.Message)
+	}
+	if !strings.Contains(cliErr.Hint, "60000 ms") {
+		t.Fatalf("expected the Retry-After value in the hint, got %q", cliErr.Hint)
+	}
+	if got := len(stub.dataRequests()); got != 1 {
+		t.Fatalf("expected a single request, got %d", got)
+	}
+}

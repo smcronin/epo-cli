@@ -964,11 +964,15 @@ func mapError(err error) *epoerrors.CLIError {
 				Hint:    build404Hint(apiErr.Error(), apiErr.Body),
 			}
 		case apiErr.StatusCode == 429:
+			hint := "Retry with backoff; OPS may return Retry-After"
+			if apiErr.RetryAfter > 0 {
+				hint = fmt.Sprintf("OPS asked to wait %s before retrying (Retry-After: %d ms)", apiErr.RetryAfter, apiErr.RetryAfter.Milliseconds())
+			}
 			return &epoerrors.CLIError{
 				Code:    apiErr.StatusCode,
 				Type:    "RATE_LIMITED",
 				Message: apiErr.Error(),
-				Hint:    "Retry with backoff; OPS may return Retry-After",
+				Hint:    hint,
 			}
 		case apiErr.StatusCode >= 500:
 			return &epoerrors.CLIError{

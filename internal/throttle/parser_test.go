@@ -2,6 +2,7 @@ package throttle
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -46,5 +47,32 @@ func TestParseThrottleControlInvalid(t *testing.T) {
 	}
 	if state.System != "" {
 		t.Fatalf("expected empty system for invalid value, got %q", state.System)
+	}
+}
+
+func TestNearLimitUsesByteQuotas(t *testing.T) {
+	t.Parallel()
+
+	quiet := []Quota{
+		{},
+		// The OPS guide's own "quota remaining" example response.
+		{IndividualPerHourUsed: 3006, RegisteredPerWeekUsed: 900006},
+		{IndividualPerHourUsed: 100_000_000, RegisteredPerWeekUsed: 1_000_000_000},
+		{IndividualPerHourUsed: 404_999_999, RegisteredPerWeekUsed: 3_599_999_999},
+	}
+	for _, q := range quiet {
+		if near, msg := q.NearLimit(); near {
+			t.Fatalf("unexpected near-limit warning for %+v: %s", q, msg)
+		}
+	}
+
+	near, msg := Quota{IndividualPerHourUsed: 420_000_000}.NearLimit()
+	if !near || !strings.Contains(msg, "420 MB of ~450 MB hourly") {
+		t.Fatalf("expected hourly byte warning, got %v %q", near, msg)
+	}
+
+	near, msg = Quota{RegisteredPerWeekUsed: 3_800_000_000}.NearLimit()
+	if !near || !strings.Contains(msg, "3.80 GB of ~4.00 GB weekly") {
+		t.Fatalf("expected weekly byte warning, got %v %q", near, msg)
 	}
 }
