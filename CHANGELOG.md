@@ -19,7 +19,7 @@ All notable changes to this project will be documented in this file.
 - `epo register upp` and `epo status` no longer treat a kindless 7-digit EP publication number as an application number
 
 ### Changed
-- `--all` without `--range` requests 100 results per page (the OPS maximum) instead of 25
+- `--all` without `--range` requests 100 results per page (the OPS maximum) instead of 25; pass `--range 1-25 --all` to keep the smaller pages
 - One OAuth token is requested per process and reused across OPS requests
 - `epo methods` describes the default cpc output accurately; skill docs now cover the `eps` and `update` command groups
 - Removed unused code and merged duplicated request, envelope and batch-output blocks into shared helpers
