@@ -95,6 +95,71 @@ func init() {
 	rootCmd.AddCommand(newRawCmd())
 	rootCmd.AddCommand(newUpdateCmd())
 	rootCmd.AddCommand(newMethodsCmd())
+
+	rootCmd.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		return validateOutputFormat()
+	}
+	rootCmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
+		return usageError(cmd, err.Error())
+	})
+	applyUsageErrors(rootCmd)
+}
+
+// applyUsageErrors makes every command report misuse as a usage error
+// (VALIDATION_ERROR, exit 2). Command groups reject unknown subcommands
+// instead of printing help with exit 0, and positional-argument validators
+// return typed errors.
+func applyUsageErrors(cmd *cobra.Command) {
+	if cmd.HasSubCommands() && cmd.Run == nil && cmd.RunE == nil {
+		cmd.Args = cobra.ArbitraryArgs
+		cmd.RunE = runCommandGroup
+	} else if cmd.Args != nil {
+		validate := cmd.Args
+		cmd.Args = func(c *cobra.Command, args []string) error {
+			if err := validate(c, args); err != nil {
+				return usageError(c, err.Error())
+			}
+			return nil
+		}
+	}
+	for _, child := range cmd.Commands() {
+		applyUsageErrors(child)
+	}
+}
+
+func runCommandGroup(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 {
+		return cmd.Help()
+	}
+	message := fmt.Sprintf("unknown command %q for %q", args[0], cmd.CommandPath())
+	if suggestions := cmd.SuggestionsFor(args[0]); len(suggestions) > 0 {
+		message += fmt.Sprintf(" (did you mean %q?)", suggestions[0])
+	}
+	return usageError(cmd, message)
+}
+
+func usageError(cmd *cobra.Command, message string) error {
+	return &epoerrors.CLIError{
+		Code:    400,
+		Type:    "VALIDATION_ERROR",
+		Message: message,
+		Hint:    fmt.Sprintf("Run `%s --help` for usage", cmd.CommandPath()),
+	}
+}
+
+// validateOutputFormat rejects an unsupported --format before a command does
+// any work (OPS calls, file writes).
+func validateOutputFormat() error {
+	switch flagFormat {
+	case "json", "ndjson", "csv", "table":
+		return nil
+	}
+	return &epoerrors.CLIError{
+		Code:    400,
+		Type:    "VALIDATION_ERROR",
+		Message: fmt.Sprintf("unsupported format %q", flagFormat),
+		Hint:    "Use --format json, ndjson, csv, or table",
+	}
 }
 
 func Execute() {
@@ -117,12 +182,7 @@ func outputSuccess(cmd *cobra.Command, data any) error {
 	case "table":
 		writeErr = writeTable(env)
 	default:
-		return &epoerrors.CLIError{
-			Code:    400,
-			Type:    "VALIDATION_ERROR",
-			Message: fmt.Sprintf("unsupported format %q", flagFormat),
-			Hint:    "Use --format json, ndjson, csv, or table",
-		}
+		return validateOutputFormat()
 	}
 	if writeErr != nil {
 		return writeErr
