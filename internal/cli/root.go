@@ -586,8 +586,8 @@ func extractRegisterRows(root map[string]any) ([]map[string]any, bool) {
 		biblio := asAnyMap(doc["reg:bibliographic-data"])
 
 		appDoc := asAnyMap(asAnyMap(biblio["reg:application-reference"])["reg:document-id"])
-		pubDoc := firstDocumentID(asAnyMap(biblio["reg:publication-reference"])["reg:document-id"])
-		status := asAnyMap(asAnyMap(doc["reg:ep-patent-statuses"])["reg:ep-patent-status"])["$"]
+		pubDoc := registerPublicationDocumentID(biblio)
+		status := registerStatusText(doc)
 
 		row := map[string]any{
 			"appCountry":     textValue(appDoc["reg:country"]),
@@ -596,7 +596,7 @@ func extractRegisterRows(root map[string]any) ([]map[string]any, bool) {
 			"pubDocNumber":   textValue(pubDoc["reg:doc-number"]),
 			"pubDate":        textValue(pubDoc["reg:date"]),
 			"title":          firstTitleText(biblio["reg:invention-title"]),
-			"epPatentStatus": textValue(status),
+			"epPatentStatus": status,
 		}
 		rows = append(rows, row)
 	}

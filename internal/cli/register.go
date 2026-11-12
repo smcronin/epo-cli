@@ -137,7 +137,9 @@ func newRegisterUPPCmd() *cobra.Command {
 var (
 	publicationDocdbPattern  = regexp.MustCompile(`^[A-Z]{2}\.[0-9]+\.[A-Z][0-9]?$`)
 	publicationEpodocPattern = regexp.MustCompile(`^[A-Z]{2}[0-9]+[A-Z][0-9]?$`)
-	applicationEpodocPattern = regexp.MustCompile(`^[A-Z]{2}[0-9]{6,}$`)
+	// EP application numbers carry at least 8 digits (EP99203729); kindless
+	// publication numbers have at most 7 (EP1000000) and must not match.
+	applicationEpodocPattern = regexp.MustCompile(`^[A-Z]{2}[0-9]{8,}$`)
 )
 
 func isLikelyPublicationRef(reference string) bool {
@@ -204,11 +206,7 @@ func summarizeRegisterPayload(v any) map[string]any {
 		return summary
 	}
 
-	status := firstNonEmpty(
-		textValue(registerDoc["@status"]),
-		textValue(asAnyMap(asAnyMap(registerDoc["reg:ep-patent-statuses"])["reg:ep-patent-status"])["$"]),
-	)
-	if status != "" {
+	if status := registerStatusText(registerDoc); status != "" {
 		summary["status"] = status
 	}
 
@@ -286,6 +284,29 @@ func firstRegisterDocument(v any) map[string]any {
 	return map[string]any{}
 }
 
+// registerStatusText returns a register document's status: the @status
+// attribute, else reg:ep-patent-status, which OPS sends as one object or as
+// an array of status changes (the most recent change wins).
+func registerStatusText(registerDoc map[string]any) string {
+	if status := textValue(registerDoc["@status"]); status != "" {
+		return status
+	}
+	statuses := asAnyMap(registerDoc["reg:ep-patent-statuses"])["reg:ep-patent-status"]
+	best, bestDate := "", ""
+	for _, raw := range asAnySliceOrSingleton(statuses) {
+		entry := asAnyMap(raw)
+		text := textValue(entry["$"])
+		if text == "" {
+			continue
+		}
+		changeDate := textValue(entry["@change-date"])
+		if best == "" || changeDate > bestDate {
+			best, bestDate = text, changeDate
+		}
+	}
+	return best
+}
+
 func registerPublicationDocumentID(biblio map[string]any) map[string]any {
 	refs := asAnySliceOrSingleton(biblio["reg:publication-reference"])
 	if len(refs) == 0 {
@@ -293,7 +314,7 @@ func registerPublicationDocumentID(biblio map[string]any) map[string]any {
 	}
 	best := map[string]any{}
 	for _, raw := range refs {
-		doc := asAnyMap(asAnyMap(raw)["reg:document-id"])
+		doc := firstDocumentID(asAnyMap(raw)["reg:document-id"])
 		if len(doc) == 0 {
 			continue
 		}

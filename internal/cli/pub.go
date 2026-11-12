@@ -1224,7 +1224,7 @@ func attachKindCode(reference, inputFormat, kindCode string) string {
 	if reference == "" || kindCode == "" {
 		return reference
 	}
-	if strings.Contains(strings.ToUpper(reference), kindCode) {
+	if strings.HasSuffix(strings.ToUpper(reference), kindCode) {
 		return reference
 	}
 	if inputFormat == "docdb" || looksDocdbPublicationReference(reference) {
