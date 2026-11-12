@@ -440,7 +440,7 @@ func newRegisterSearchCmd() *cobra.Command {
 			return runOPSBatch(cmd, "register", queries, func(inputQuery string) (api.Request, map[string]any, error) {
 				request := buildSearchRequest("/register/search", inputQuery, rangeHeader, usePost)
 				return request, searchRequestMeta(request), nil
-			}, nil)
+			}, parseRegisterSearchPagination)
 		},
 	}
 
@@ -467,6 +467,7 @@ func runRegisterSearchAll(cmd *cobra.Command, queries []string, rangeHeader stri
 		currentStart := start
 		currentEnd := end
 		pages := 0
+		total := 0
 		allItems := make([]any, 0)
 		combinedWarnings := make([]string, 0)
 		var throttleSnapshot any
@@ -493,7 +494,18 @@ func runRegisterSearchAll(cmd *cobra.Command, queries []string, rangeHeader stri
 			items, _ := extractRegisterSearchItems(parsed)
 			allItems = append(allItems, items...)
 
-			if len(items) < pageSize {
+			// Stop on the reported total; fall back to a short page only
+			// when OPS omits it.
+			pagination := parseRegisterSearchPagination(parsed)
+			if n, ok := pagination["total"].(int); ok {
+				total = n
+			}
+			hasMore := len(items) == pageSize
+			if reported, ok := pagination["hasMore"].(bool); ok {
+				hasMore = reported && len(items) > 0
+			}
+
+			if !hasMore {
 				batchResults = append(batchResults, map[string]any{
 					"query": q,
 					"ok":    true,
@@ -506,6 +518,7 @@ func runRegisterSearchAll(cmd *cobra.Command, queries []string, rangeHeader stri
 					"pagination": map[string]any{
 						"offset":       start,
 						"limit":        pageSize,
+						"total":        total,
 						"pagesFetched": pages,
 						"returned":     len(allItems),
 					},

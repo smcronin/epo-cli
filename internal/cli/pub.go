@@ -695,7 +695,7 @@ func withSearchConstituent(current, add string) string {
 }
 
 func runPublishedSearchAll(cmd *cobra.Command, queries []string, constituents, rangeHeader string, usePost bool, sortMode string, flatMode bool) error {
-	start, end, err := parseRangeWindow(rangeHeader)
+	start, end, err := allPagesWindow(rangeHeader)
 	if err != nil {
 		return &epoerrors.CLIError{
 			Code:    400,
@@ -758,6 +758,11 @@ func runPublishedSearchAll(cmd *cobra.Command, queries []string, constituents, r
 					hasMore = boolValue
 				}
 			}
+			nextStart, nextEnd, belowCeiling := nextSearchWindow(currentEnd, pageSize)
+			if hasMore && len(items) > 0 && !belowCeiling {
+				combinedWarnings = append(combinedWarnings, searchCeilingWarning(total))
+				hasMore = false
+			}
 			if !hasMore || len(items) == 0 {
 				if sortMode != pubSearchSortNone {
 					sortPublishedSearchItems(allItems, sortMode)
@@ -790,12 +795,45 @@ func runPublishedSearchAll(cmd *cobra.Command, queries []string, constituents, r
 				break
 			}
 
-			currentStart = currentEnd + 1
-			currentEnd = currentStart + pageSize - 1
+			currentStart, currentEnd = nextStart, nextEnd
 		}
 	}
 
 	return finishBatch(cmd, "published-data", batchResults, searchBatchPayload("published-data"))
+}
+
+const (
+	// OPS search limits: "the maximum range is 100" per request and "the
+	// maximum total number of results is 2000" per query.
+	opsSearchMaxPageSize = 100
+	opsSearchMaxResults  = 2000
+)
+
+// allPagesWindow returns the first page window for auto-pagination: the
+// requested --range, or the largest page OPS allows when none was given.
+func allPagesWindow(rangeHeader string) (start int, end int, err error) {
+	if strings.TrimSpace(rangeHeader) == "" {
+		return 1, opsSearchMaxPageSize, nil
+	}
+	return parseRangeWindow(rangeHeader)
+}
+
+// nextSearchWindow advances a page window without crossing the OPS result
+// ceiling. ok is false once the ceiling has been reached.
+func nextSearchWindow(currentEnd, pageSize int) (start int, end int, ok bool) {
+	start = currentEnd + 1
+	if start > opsSearchMaxResults {
+		return 0, 0, false
+	}
+	end = start + pageSize - 1
+	if end > opsSearchMaxResults {
+		end = opsSearchMaxResults
+	}
+	return start, end, true
+}
+
+func searchCeilingWarning(total int) string {
+	return fmt.Sprintf("OPS returns at most %d results per query; %d matched. Narrow the query (for example with a pd date window) to retrieve the rest.", opsSearchMaxResults, total)
 }
 
 // searchBatchPayload unwraps a single search row into the full envelope.
@@ -868,11 +906,10 @@ func runPublishedSearchSummary(cmd *cobra.Command, queries []string, constituent
 	for _, q := range queries {
 		items := []any{}
 		total := 0
-		currentRange := rangeHeader
-		if strings.TrimSpace(currentRange) == "" {
-			currentRange = "1-25"
+		start, end, rangeErr := parseRangeWindow(rangeHeader)
+		if allPages {
+			start, end, rangeErr = allPagesWindow(rangeHeader)
 		}
-		start, end, rangeErr := parseRangeWindow(currentRange)
 		if rangeErr != nil {
 			return &epoerrors.CLIError{
 				Code:    400,
@@ -916,8 +953,11 @@ func runPublishedSearchSummary(cmd *cobra.Command, queries []string, constituent
 			if !hasMore || len(pageItems) == 0 {
 				break
 			}
-			fetchStart = fetchEnd + 1
-			fetchEnd = fetchStart + pageSize - 1
+			nextStart, nextEnd, belowCeiling := nextSearchWindow(fetchEnd, pageSize)
+			if !belowCeiling {
+				break
+			}
+			fetchStart, fetchEnd = nextStart, nextEnd
 		}
 		if failed {
 			continue
@@ -1612,12 +1652,22 @@ func dedupeFlatPublicationRows(rows []map[string]any) []map[string]any {
 }
 
 func parseSearchPagination(results any) map[string]any {
+	return searchPaginationFrom(results, "ops:biblio-search")
+}
+
+func parseRegisterSearchPagination(results any) map[string]any {
+	return searchPaginationFrom(results, "ops:register-search")
+}
+
+// searchPaginationFrom reads total-result-count and ops:range from an OPS
+// search container (ops:biblio-search or ops:register-search).
+func searchPaginationFrom(results any, searchKey string) map[string]any {
 	root, ok := results.(map[string]any)
 	if !ok {
 		return nil
 	}
 	worldPatentData := asAnyMap(root["ops:world-patent-data"])
-	biblioSearch := asAnyMap(worldPatentData["ops:biblio-search"])
+	biblioSearch := asAnyMap(worldPatentData[searchKey])
 	if len(biblioSearch) == 0 {
 		return nil
 	}
