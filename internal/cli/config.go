@@ -62,7 +62,7 @@ Provide credentials as two arguments, load them from the current environment
 				"source":           source,
 				"configFile":       path,
 				"clientIDMasked":   config.Mask(clientID),
-				"clientSecretMask": config.Mask(clientSecret),
+				"clientSecretMask": config.MaskSecret(clientSecret),
 			})
 		},
 	}
@@ -189,7 +189,7 @@ func newConfigShowCmd() *cobra.Command {
 				"clientIDConfigured": clientID != "",
 				"clientIDMasked":     config.Mask(clientID),
 				"secretConfigured":   clientSecret != "",
-				"secretMasked":       config.Mask(clientSecret),
+				"secretMasked":       config.MaskSecret(clientSecret),
 			})
 		},
 	}

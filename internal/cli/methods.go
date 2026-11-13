@@ -60,7 +60,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 				{Name: "--client-id", Description: "OPS client ID (consumer key)"},
 				{Name: "--client-secret", Description: "OPS client secret"},
 			},
-			OutputShapeHint: "Configuration status with config file path and masked credentials",
+			OutputShapeHint: "Configuration status with config file path, masked client ID, and a fixed mask for the secret",
 			Examples: []string{
 				"epo auth configure --client-id $EPO_CLIENT_ID --client-secret $EPO_CLIENT_SECRET -f json -q",
 			},
@@ -106,7 +106,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 				{Name: "--client-id", Description: "Global flag source for client ID"},
 				{Name: "--client-secret", Description: "Global flag source for client secret"},
 			},
-			OutputShapeHint: "Save status, source, config path, and masked credentials",
+			OutputShapeHint: "Save status, source, config path, masked client ID, and a fixed mask for the secret",
 			Examples: []string{
 				"epo config set-creds --from-env -f json -q",
 				"epo config set-creds --from-dotenv .env -f json -q",

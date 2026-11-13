@@ -8,6 +8,7 @@ Use `epo methods --json -f json -q` as the authoritative contract for command/fl
 ```bash
 epo config show -f json -q
 ```
+The client secret is never shown: `secretMasked` is a fixed `********` when a secret is stored. Use `configured` / `secretConfigured` to check status, and `clientIDMasked` (first and last three characters) to tell which key is in use.
 2. Check quota before broad jobs:
 ```bash
 epo usage quota -f json -q

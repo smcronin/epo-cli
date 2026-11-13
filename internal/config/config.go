@@ -131,6 +131,21 @@ func firstSetEnv(keys []string) (string, string) {
 	return "", ""
 }
 
+// SecretMask is what MaskSecret returns for any non-empty secret.
+const SecretMask = "********"
+
+// MaskSecret hides a secret completely. Unlike Mask it reveals no characters
+// and no length: every non-empty value becomes the same fixed string.
+func MaskSecret(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return ""
+	}
+	return SecretMask
+}
+
+// Mask keeps the first and last three characters of an identifier (such as
+// the client ID) so a user can tell which key is configured. Do not use it
+// for secrets; use MaskSecret.
 func Mask(value string) string {
 	value = strings.TrimSpace(value)
 	n := len(value)
