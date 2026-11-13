@@ -101,6 +101,7 @@ func (c *Client) Do(ctx context.Context, method, requestPath string, query url.V
 			StatusCode: httpResp.StatusCode,
 			Message:    "EPS request failed",
 			Body:       shortBody(body, 1000),
+			Service:    epoerrors.ServiceEPS,
 		}
 	}
 	return resp, nil

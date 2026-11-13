@@ -134,3 +134,115 @@ func TestClientReturnsRateLimitWhenRetryAfterExceedsDeadline(t *testing.T) {
 		t.Fatalf("expected an immediate return, took %s", elapsed)
 	}
 }
+
+func TestClientDoesNotRetryQuotaRejection(t *testing.T) {
+	t.Parallel()
+
+	requests := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		w.Header().Set("X-Rejection-Reason", "RegisteredQuotaPerWeek")
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`<error><code>403</code><message>This request has been rejected due to the violation of Fair Use policy</message></error>`))
+	}))
+	defer srv.Close()
+
+	client := NewClient(srv.Client(), staticTokenProvider{token: "abc123"})
+	client.SetBaseURL(srv.URL)
+	client.backoffBase = 1 * time.Millisecond
+	client.backoffCap = 1 * time.Millisecond
+	client.jitterMax = 0
+
+	_, err := client.Do(context.Background(), Request{
+		Method: http.MethodGet,
+		Path:   "/published-data/search",
+	})
+
+	var apiErr *epoerrors.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected the 403 API error, got %v", err)
+	}
+	if apiErr.StatusCode != http.StatusForbidden {
+		t.Fatalf("unexpected status code: %d", apiErr.StatusCode)
+	}
+	if apiErr.RejectionReason != "RegisteredQuotaPerWeek" {
+		t.Fatalf("expected the X-Rejection-Reason value on the error, got %q", apiErr.RejectionReason)
+	}
+	if requests != 1 {
+		t.Fatalf("expected a quota 403 without Retry-After not to be retried, got %d requests", requests)
+	}
+}
+
+func TestClientRetriesForbiddenWithRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	requests := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if requests == 1 {
+			w.Header().Set("Retry-After", "5")
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`<error><code>403</code></error>`))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+
+	client := NewClient(srv.Client(), staticTokenProvider{token: "abc123"})
+	client.SetBaseURL(srv.URL)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	resp, err := client.Do(ctx, Request{
+		Method: http.MethodGet,
+		Path:   "/published-data/search",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unexpected status code: %d", resp.StatusCode)
+	}
+	if requests != 2 {
+		t.Fatalf("expected one retry after the Retry-After wait, got %d requests", requests)
+	}
+}
+
+func TestClientDoesNotRetryForbiddenWhenRetryAfterExceedsDeadline(t *testing.T) {
+	t.Parallel()
+
+	requests := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		w.Header().Set("Retry-After", "60000")
+		w.Header().Set("X-Rejection-Reason", "IndividualQuotaPerHour")
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`<error><code>403</code></error>`))
+	}))
+	defer srv.Close()
+
+	client := NewClient(srv.Client(), staticTokenProvider{token: "abc123"})
+	client.SetBaseURL(srv.URL)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	_, err := client.Do(ctx, Request{
+		Method: http.MethodGet,
+		Path:   "/published-data/search",
+	})
+
+	var apiErr *epoerrors.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected the 403 API error, got %v", err)
+	}
+	if apiErr.RetryAfter != 60*time.Second {
+		t.Fatalf("expected Retry-After of 60s on the error, got %s", apiErr.RetryAfter)
+	}
+	if requests != 1 {
+		t.Fatalf("expected no retry when the wait cannot fit the deadline, got %d requests", requests)
+	}
+}

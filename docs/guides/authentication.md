@@ -158,6 +158,8 @@ func GetToken(clientID, clientSecret string) (string, error) {
 | 403 | Fair use violation | Quota exceeded |
 | 403 | Developer account blocked | Contact EPO support |
 
+How the `epo` CLI maps these: a 401 is `AUTH_FAILURE` (exit 3). A 403 with an `X-Rejection-Reason` header or a "Fair Use" body is `RATE_LIMITED` (exit 5) with the reason in `error.reason`; it is not a credentials problem. A 403 "Developer account is blocked" and any other 403 are `AUTH_FAILURE` (exit 3), with a hint that says what was refused instead of asking you to re-check credentials.
+
 ---
 
 ## Developer Portal

@@ -17,6 +17,9 @@ All notable changes to this project will be documented in this file.
 - Register table/csv/ndjson rows keep publication and status fields when OPS returns `reg:publication-reference` or `reg:ep-patent-status` as arrays
 - `--kind` is attached unless the reference already ends with that kind code (`CA2000000 --kind C` used to drop it)
 - `epo register upp` and `epo status` no longer treat a kindless 7-digit EP publication number as an application number
+- An OPS 403 quota or fair-use rejection (an `X-Rejection-Reason` header, or a "Fair Use" body) is reported as `RATE_LIMITED` (exit 5) instead of `AUTH_FAILURE` (exit 3). The hint quotes the reason and says credentials are not the problem, and the raw header value is exposed as `error.reason`. A 403 "Developer account is blocked" and any other 403 stay `AUTH_FAILURE` but no longer tell you to verify credentials; 401 is unchanged
+- A 403 is retried only when OPS sends a `Retry-After` that fits the remaining `--timeout`
+- An EPS 403 no longer says "verify client credentials" (EPS takes none)
 
 ### Changed
 - `--all` without `--range` requests 100 results per page (the OPS maximum) instead of 25; pass `--range 1-25 --all` to keep the smaller pages

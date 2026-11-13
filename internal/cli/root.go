@@ -1009,13 +1009,15 @@ func mapError(err error) *epoerrors.CLIError {
 	var apiErr *epoerrors.APIError
 	if errors.As(err, &apiErr) {
 		switch {
-		case apiErr.StatusCode == 401 || apiErr.StatusCode == 403:
+		case apiErr.StatusCode == 401:
 			return &epoerrors.CLIError{
 				Code:    apiErr.StatusCode,
 				Type:    "AUTH_FAILURE",
 				Message: apiErr.Error(),
 				Hint:    "Verify client credentials via `epo auth check`",
 			}
+		case apiErr.StatusCode == 403:
+			return mapForbidden(apiErr)
 		case apiErr.StatusCode == 404:
 			return &epoerrors.CLIError{
 				Code:    apiErr.StatusCode,
@@ -1053,6 +1055,62 @@ func mapError(err error) *epoerrors.CLIError {
 		Code:    1,
 		Type:    "GENERAL_ERROR",
 		Message: err.Error(),
+	}
+}
+
+// mapForbidden classifies a 403. OPS uses 403 for quota / fair-use rejections
+// (with an X-Rejection-Reason header), for blocked developer accounts and for
+// blacklisting or robot detection; bad credentials are a 400/401 at the token
+// endpoint. Only the first group is a rate limit, and none of them is fixed by
+// re-entering credentials.
+func mapForbidden(apiErr *epoerrors.APIError) *epoerrors.CLIError {
+	body := strings.ToLower(apiErr.Body)
+	upstream := "OPS"
+	if apiErr.Service == epoerrors.ServiceEPS {
+		upstream = "EPS"
+	}
+
+	if apiErr.RejectionReason != "" || strings.Contains(body, "fair use") {
+		var hint string
+		switch {
+		case upstream == "EPS":
+			hint = "EPS rejected the request under its fair-use policy. EPS takes no credentials, so this is not a credentials problem; " +
+				"its fair-use limit is IP-based (10 GB in any sliding 7-day window). Stop and retry after the window rolls forward."
+		case apiErr.RejectionReason != "":
+			hint = fmt.Sprintf("OPS rejected the request because a quota is exhausted (X-Rejection-Reason: %s). ", apiErr.RejectionReason) +
+				"This is not a credentials problem; do not re-enter or rotate them. " +
+				"The hourly quota frees up on a rolling one-hour window and the weekly quota resets at the start of the calendar week (midnight UTC). Stop and retry after the quota resets."
+		default:
+			hint = "OPS rejected the request under its fair-use policy (no X-Rejection-Reason header was sent). " +
+				"This is not a credentials problem; do not re-enter or rotate them. " +
+				"The hourly quota frees up on a rolling one-hour window and the weekly quota resets at the start of the calendar week (midnight UTC). Stop and retry later."
+		}
+		if apiErr.RetryAfter > 0 {
+			hint += fmt.Sprintf(" %s asked to wait %s before retrying (Retry-After: %d ms).", upstream, apiErr.RetryAfter, apiErr.RetryAfter.Milliseconds())
+		}
+		return &epoerrors.CLIError{
+			Code:    apiErr.StatusCode,
+			Type:    "RATE_LIMITED",
+			Message: apiErr.Error(),
+			Hint:    hint,
+			Reason:  apiErr.RejectionReason,
+		}
+	}
+
+	hint := "OPS refused the request (403) without a quota reason. This does not by itself mean the credentials are wrong; " +
+		"the response body is in the message. Do not loop on re-entering credentials; wait before retrying and check the account in the EPO developer portal if it persists."
+	switch {
+	case strings.Contains(body, "developer account is blocked"):
+		hint = "EPO has blocked this developer account. Re-entering credentials will not help; contact EPO support."
+	case upstream == "EPS":
+		hint = "EPS refused the request (403). EPS takes no credentials, so this is not a credentials problem; " +
+			"the response body is in the message. EPS limits are IP-based, so wait before retrying."
+	}
+	return &epoerrors.CLIError{
+		Code:    apiErr.StatusCode,
+		Type:    "AUTH_FAILURE",
+		Message: apiErr.Error(),
+		Hint:    hint,
 	}
 }
 
