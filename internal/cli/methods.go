@@ -577,7 +577,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 				{Name: "--parsed", Description: "Alias for --normalize"},
 				{Name: "--accept", Default: "application/cpc+xml"},
 			},
-			OutputShapeHint: "CPC envelope (XML body in raw field by default)",
+			OutputShapeHint: "CPC envelope (XML parsed into a nested JSON tree by default; --normalize returns flat rows)",
 			Examples: []string{
 				"epo cpc get H04W --depth 1 -f json -q",
 			},
@@ -596,7 +596,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 				{Name: "--parsed", Description: "Alias for --normalize"},
 				{Name: "--accept", Default: "application/cpc+xml"},
 			},
-			OutputShapeHint: "CPC envelope (XML body in raw field by default)",
+			OutputShapeHint: "CPC envelope (XML parsed into a nested JSON tree by default; --normalize returns flat rows)",
 			Examples: []string{
 				"epo cpc search --q chemistry --range 1-20 -f json -q",
 			},
@@ -635,7 +635,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 				{Name: "--parsed", Description: "Alias for --normalize"},
 				{Name: "--accept", Default: "application/cpc+xml"},
 			},
-			OutputShapeHint: "CPC mapping envelope (XML body in raw field by default)",
+			OutputShapeHint: "CPC mapping envelope (XML parsed into a nested JSON tree by default; --normalize returns mapping rows)",
 			Examples: []string{
 				"epo cpc map A61K9/00 --from cpc --to ecla -f json -q",
 			},

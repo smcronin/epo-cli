@@ -4,8 +4,8 @@
 
 1. `X-Throttling-Control`
 2. `Retry-After`
-3. `X-IndividualQuotaPerHour-Used`
-4. `X-RegisteredQuotaPerWeek-Used`
+3. `X-IndividualQuotaPerHour-Used` (bytes; about 450 MB per rolling hour)
+4. `X-RegisteredQuotaPerWeek-Used` (bytes; 4 GB per calendar week on the free tier)
 
 ## CLI Exit Codes
 

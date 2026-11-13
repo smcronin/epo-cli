@@ -46,41 +46,7 @@ func newUsageStatsCmd() *cobra.Command {
 				return err
 			}
 
-			request := api.Request{
-				Method: http.MethodGet,
-				Path:   "/developers/me/stats/usage",
-				Query:  url.Values{"timeRange": []string{timeRange}},
-				Accept: "application/json",
-			}
-			requestMeta := map[string]any{
-				"method": request.Method,
-				"path":   request.Path,
-				"query":  compactQuery(request.Query),
-			}
-
-			resp, err := executeOPSRequestWithBase(cmd.Context(), request, usageBaseURL)
-			if err != nil {
-				return err
-			}
-			results, warnings := parseJSONBody(resp.Body)
-			if humanDates {
-				results = withUsageHumanDates(results)
-			}
-			return outputSuccess(cmd, responsePayload{
-				Service: "usage",
-				Request: requestMeta,
-				Throttle: map[string]any{
-					"system":   resp.Metadata.Throttle.System,
-					"services": resp.Metadata.Throttle.Services,
-				},
-				Quota: map[string]int{
-					"hourUsed":       resp.Metadata.Quota.IndividualPerHourUsed,
-					"weekUsed":       resp.Metadata.Quota.RegisteredPerWeekUsed,
-					"payingWeekUsed": resp.Metadata.Quota.RegisteredPayingPerWeekUsed,
-				},
-				Results:  results,
-				Warnings: warnings,
-			})
+			return runUsageStats(cmd, timeRange, humanDates)
 		},
 	}
 
@@ -97,7 +63,7 @@ func newUsageTodayCmd() *cobra.Command {
 		Short: "Fetch usage stats for today",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			today := time.Now().Format("02/01/2006")
-			return runUsageStatsShortcut(cmd, today, "", true)
+			return runUsageStats(cmd, today, true)
 		},
 	}
 }
@@ -109,7 +75,7 @@ func newUsageWeekCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			end := time.Now()
 			start := end.AddDate(0, 0, -6)
-			return runUsageStatsShortcut(cmd, start.Format("02/01/2006"), end.Format("02/01/2006"), true)
+			return runUsageStats(cmd, start.Format("02/01/2006")+"~"+end.Format("02/01/2006"), true)
 		},
 	}
 }
@@ -130,16 +96,9 @@ func newUsageQuotaCmd() *cobra.Command {
 				return err
 			}
 			return outputSuccess(cmd, responsePayload{
-				Service: "usage",
-				Throttle: map[string]any{
-					"system":   resp.Metadata.Throttle.System,
-					"services": resp.Metadata.Throttle.Services,
-				},
-				Quota: map[string]int{
-					"hourUsed":       resp.Metadata.Quota.IndividualPerHourUsed,
-					"weekUsed":       resp.Metadata.Quota.RegisteredPerWeekUsed,
-					"payingWeekUsed": resp.Metadata.Quota.RegisteredPayingPerWeekUsed,
-				},
+				Service:  "usage",
+				Throttle: throttleEnvelope(resp),
+				Quota:    quotaEnvelope(resp),
 				Results: map[string]any{
 					"message": "Quota counters update on OPS cadence and may lag behind message totals.",
 				},
@@ -148,12 +107,9 @@ func newUsageQuotaCmd() *cobra.Command {
 	}
 }
 
-func runUsageStatsShortcut(cmd *cobra.Command, from, to string, humanDates bool) error {
-	timeRange := from
-	if strings.TrimSpace(to) != "" {
-		timeRange = from + "~" + to
-	}
-
+// runUsageStats fetches usage stats for an OPS timeRange (dd/mm/yyyy or
+// dd/mm/yyyy~dd/mm/yyyy).
+func runUsageStats(cmd *cobra.Command, timeRange string, humanDates bool) error {
 	request := api.Request{
 		Method: http.MethodGet,
 		Path:   "/developers/me/stats/usage",
@@ -175,17 +131,10 @@ func runUsageStatsShortcut(cmd *cobra.Command, from, to string, humanDates bool)
 		results = withUsageHumanDates(results)
 	}
 	return outputSuccess(cmd, responsePayload{
-		Service: "usage",
-		Request: requestMeta,
-		Throttle: map[string]any{
-			"system":   resp.Metadata.Throttle.System,
-			"services": resp.Metadata.Throttle.Services,
-		},
-		Quota: map[string]int{
-			"hourUsed":       resp.Metadata.Quota.IndividualPerHourUsed,
-			"weekUsed":       resp.Metadata.Quota.RegisteredPerWeekUsed,
-			"payingWeekUsed": resp.Metadata.Quota.RegisteredPayingPerWeekUsed,
-		},
+		Service:  "usage",
+		Request:  requestMeta,
+		Throttle: throttleEnvelope(resp),
+		Quota:    quotaEnvelope(resp),
 		Results:  results,
 		Warnings: warnings,
 	})

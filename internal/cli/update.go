@@ -541,13 +541,18 @@ func legacyBinaryNameForRuntime() string {
 	return "epo-cli"
 }
 
-func candidateBinaryNamesForRuntime() []string {
-	primary := binaryNameForRuntime()
-	legacy := legacyBinaryNameForRuntime()
-	if primary == legacy {
-		return []string{primary}
+// releaseBinaryNameForRuntime is the entry name the release workflow puts in
+// each archive: epo_<os>_<arch>, plus .exe on Windows.
+func releaseBinaryNameForRuntime() string {
+	name := fmt.Sprintf("%s_%s_%s", updateArchivePrefix, runtime.GOOS, runtime.GOARCH)
+	if runtime.GOOS == "windows" {
+		name += ".exe"
 	}
-	return []string{primary, legacy}
+	return name
+}
+
+func candidateBinaryNamesForRuntime() []string {
+	return []string{releaseBinaryNameForRuntime(), binaryNameForRuntime(), legacyBinaryNameForRuntime()}
 }
 
 func targetExecutablePath(execPath string) string {

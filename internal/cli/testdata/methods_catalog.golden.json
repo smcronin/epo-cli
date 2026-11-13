@@ -953,7 +953,7 @@
         "example": "H04W"
       }
     ],
-    "outputShapeHint": "CPC envelope (XML body in raw field by default)",
+    "outputShapeHint": "CPC envelope (XML parsed into a nested JSON tree by default; --normalize returns flat rows)",
     "examples": [
       "epo cpc get H04W --depth 1 -f json -q"
     ]
@@ -988,7 +988,7 @@
         "default": "application/cpc+xml"
       }
     ],
-    "outputShapeHint": "CPC envelope (XML body in raw field by default)",
+    "outputShapeHint": "CPC envelope (XML parsed into a nested JSON tree by default; --normalize returns flat rows)",
     "examples": [
       "epo cpc search --q chemistry --range 1-20 -f json -q"
     ]
@@ -1062,7 +1062,7 @@
         "example": "A61K9/00"
       }
     ],
-    "outputShapeHint": "CPC mapping envelope (XML body in raw field by default)",
+    "outputShapeHint": "CPC mapping envelope (XML parsed into a nested JSON tree by default; --normalize returns mapping rows)",
     "examples": [
       "epo cpc map A61K9/00 --from cpc --to ecla -f json -q"
     ]

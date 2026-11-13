@@ -1,9 +1,11 @@
 package errors
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 const (
-	ExitOK           = 0
 	ExitGeneralError = 1
 	ExitUsageError   = 2
 	ExitAuthFailure  = 3
@@ -33,6 +35,8 @@ type APIError struct {
 	StatusCode int
 	Message    string
 	Body       string
+	// RetryAfter is the wait OPS requested via the Retry-After header, if any.
+	RetryAfter time.Duration
 }
 
 func (e *APIError) Error() string {

@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/smcronin/epo-cli/internal/api"
-	"github.com/smcronin/epo-cli/internal/auth"
 	epoerrors "github.com/smcronin/epo-cli/internal/errors"
 	"github.com/spf13/cobra"
 )
@@ -64,21 +63,11 @@ func newPubBiblioCmd() *cobra.Command {
 		Short: "Fetch published-data bibliographic record",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !isOneOf(refType, "publication", "application", "priority") {
-				return &epoerrors.CLIError{
-					Code:    400,
-					Type:    "VALIDATION_ERROR",
-					Message: fmt.Sprintf("unsupported --ref-type %q", refType),
-					Hint:    "Use publication, application, or priority",
-				}
+			if err := validateRefType(refType); err != nil {
+				return err
 			}
-			if !isOneOf(inputFormat, "epodoc", "docdb", "auto") {
-				return &epoerrors.CLIError{
-					Code:    400,
-					Type:    "VALIDATION_ERROR",
-					Message: fmt.Sprintf("unsupported --input-format %q", inputFormat),
-					Hint:    "Use auto, epodoc, or docdb",
-				}
+			if err := validatePubInputFormat(inputFormat); err != nil {
+				return err
 			}
 
 			references, err := resolveSingleOrStdinInputs(args)
@@ -128,21 +117,11 @@ func newPubSimpleEndpointCmd(name, endpoint, shortDesc string) *cobra.Command {
 		Short: shortDesc,
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !isOneOf(refType, "publication", "application", "priority") {
-				return &epoerrors.CLIError{
-					Code:    400,
-					Type:    "VALIDATION_ERROR",
-					Message: fmt.Sprintf("unsupported --ref-type %q", refType),
-					Hint:    "Use publication, application, or priority",
-				}
+			if err := validateRefType(refType); err != nil {
+				return err
 			}
-			if !isOneOf(inputFormat, "epodoc", "docdb", "auto") {
-				return &epoerrors.CLIError{
-					Code:    400,
-					Type:    "VALIDATION_ERROR",
-					Message: fmt.Sprintf("unsupported --input-format %q", inputFormat),
-					Hint:    "Use auto, epodoc, or docdb",
-				}
+			if err := validatePubInputFormat(inputFormat); err != nil {
+				return err
 			}
 
 			references, err := resolveSingleOrStdinInputs(args)
@@ -189,21 +168,11 @@ func newPubEquivalentsCmd() *cobra.Command {
 		Short: "Fetch simple-family equivalents for a published reference",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !isOneOf(refType, "publication", "application", "priority") {
-				return &epoerrors.CLIError{
-					Code:    400,
-					Type:    "VALIDATION_ERROR",
-					Message: fmt.Sprintf("unsupported --ref-type %q", refType),
-					Hint:    "Use publication, application, or priority",
-				}
+			if err := validateRefType(refType); err != nil {
+				return err
 			}
-			if !isOneOf(inputFormat, "epodoc", "docdb", "auto") {
-				return &epoerrors.CLIError{
-					Code:    400,
-					Type:    "VALIDATION_ERROR",
-					Message: fmt.Sprintf("unsupported --input-format %q", inputFormat),
-					Hint:    "Use auto, epodoc, or docdb",
-				}
+			if err := validatePubInputFormat(inputFormat); err != nil {
+				return err
 			}
 
 			references, err := resolveSingleOrStdinInputs(args)
@@ -323,35 +292,8 @@ echo "applicant=IBM" | epo pub search --stdin --all --table
 			}
 
 			return runOPSBatch(cmd, "published-data", queries, func(inputQuery string) (api.Request, map[string]any, error) {
-				request := api.Request{
-					Method: http.MethodGet,
-					Path:   path,
-					Accept: "application/json",
-				}
-				if strings.TrimSpace(rangeHeader) != "" {
-					request.Headers = map[string]string{
-						"Range": strings.TrimSpace(rangeHeader),
-					}
-				}
-
-				if usePost {
-					request.Method = http.MethodPost
-					request.ContentType = "text/plain"
-					request.Body = []byte("q=" + url.QueryEscape(inputQuery))
-				} else {
-					request.Query = url.Values{}
-					request.Query.Set("q", inputQuery)
-				}
-
-				requestMeta := map[string]any{
-					"method": request.Method,
-					"path":   request.Path,
-					"query":  compactQuery(request.Query),
-				}
-				if len(request.Headers) > 0 {
-					requestMeta["headers"] = request.Headers
-				}
-				return request, requestMeta, nil
+				request := buildSearchRequest(path, inputQuery, rangeHeader, usePost)
+				return request, searchRequestMeta(request), nil
 			}, parseSearchPagination)
 		},
 	}
@@ -438,9 +380,6 @@ epo pub recent --cpc H04L --inventor "Smith" --days 14 -f json -q
 			if flagAll {
 				return runPublishedSearchAll(cmd, []string{query}, constituents, "", false, sortMode, flatMode)
 			}
-			if flatMode {
-				return runPublishedSearchFlat(cmd, []string{query}, constituents, "", false, sortMode)
-			}
 			return runPublishedSearchFlat(cmd, []string{query}, constituents, "", false, sortMode)
 		},
 	}
@@ -477,21 +416,11 @@ func newPubImagesInquiryCmd() *cobra.Command {
 		Short: "List available images/documents for a published reference",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !isOneOf(refType, "publication", "application", "priority") {
-				return &epoerrors.CLIError{
-					Code:    400,
-					Type:    "VALIDATION_ERROR",
-					Message: fmt.Sprintf("unsupported --ref-type %q", refType),
-					Hint:    "Use publication, application, or priority",
-				}
+			if err := validateRefType(refType); err != nil {
+				return err
 			}
-			if !isOneOf(inputFormat, "epodoc", "docdb", "auto") {
-				return &epoerrors.CLIError{
-					Code:    400,
-					Type:    "VALIDATION_ERROR",
-					Message: fmt.Sprintf("unsupported --input-format %q", inputFormat),
-					Hint:    "Use auto, epodoc, or docdb",
-				}
+			if err := validatePubInputFormat(inputFormat); err != nil {
+				return err
 			}
 			references, err := resolveSingleOrStdinInputs(args)
 			if err != nil {
@@ -623,24 +552,11 @@ epo pub images fetch "published-data/images/EP/1000000/A1/fullimage" --link --ra
 				results = append(results, result)
 			}
 
-			if len(results) == 1 {
-				single := results[0]
-				if ok, _ := single["ok"].(bool); ok {
-					return outputSuccess(cmd, responsePayload{
-						Service: "published-data",
-						Results: single,
-					})
+			return finishBatch(cmd, "published-data", results, func(single map[string]any) responsePayload {
+				return responsePayload{
+					Service: "published-data",
+					Results: single,
 				}
-				return &epoerrors.CLIError{
-					Code:    1,
-					Type:    "GENERAL_ERROR",
-					Message: fmt.Sprintf("%v", single["error"]),
-				}
-			}
-
-			return outputSuccess(cmd, responsePayload{
-				Service: "published-data",
-				Results: results,
 			})
 		},
 	}
@@ -693,24 +609,11 @@ func runPubBiblioFlat(cmd *cobra.Command, references []string, refType, inputFor
 		})
 	}
 
-	if len(rows) == 1 {
-		single := rows[0]
-		if ok, _ := single["ok"].(bool); ok {
-			return outputSuccess(cmd, responsePayload{
-				Service: "published-data",
-				Results: single["results"],
-			})
+	return finishBatch(cmd, "published-data", rows, func(single map[string]any) responsePayload {
+		return responsePayload{
+			Service: "published-data",
+			Results: single["results"],
 		}
-		return &epoerrors.CLIError{
-			Code:    1,
-			Type:    "GENERAL_ERROR",
-			Message: fmt.Sprintf("%v", single["error"]),
-		}
-	}
-
-	return outputSuccess(cmd, responsePayload{
-		Service: "published-data",
-		Results: rows,
 	})
 }
 
@@ -792,7 +695,7 @@ func withSearchConstituent(current, add string) string {
 }
 
 func runPublishedSearchAll(cmd *cobra.Command, queries []string, constituents, rangeHeader string, usePost bool, sortMode string, flatMode bool) error {
-	start, end, err := parseRangeWindow(rangeHeader)
+	start, end, err := allPagesWindow(rangeHeader)
 	if err != nil {
 		return &epoerrors.CLIError{
 			Code:    400,
@@ -820,22 +723,7 @@ func runPublishedSearchAll(cmd *cobra.Command, queries []string, constituents, r
 		var quotaSnapshot any
 
 		for {
-			request := api.Request{
-				Method: http.MethodGet,
-				Path:   path,
-				Accept: "application/json",
-				Headers: map[string]string{
-					"Range": fmt.Sprintf("%d-%d", currentStart, currentEnd),
-				},
-			}
-			if usePost {
-				request.Method = http.MethodPost
-				request.ContentType = "text/plain"
-				request.Body = []byte("q=" + url.QueryEscape(q))
-			} else {
-				request.Query = url.Values{}
-				request.Query.Set("q", q)
-			}
+			request := buildSearchRequest(path, q, fmt.Sprintf("%d-%d", currentStart, currentEnd), usePost)
 
 			resp, err := executeOPSRequest(cmd.Context(), request)
 			if err != nil {
@@ -848,15 +736,8 @@ func runPublishedSearchAll(cmd *cobra.Command, queries []string, constituents, r
 			}
 
 			pages++
-			throttleSnapshot = map[string]any{
-				"system":   resp.Metadata.Throttle.System,
-				"services": resp.Metadata.Throttle.Services,
-			}
-			quotaSnapshot = map[string]int{
-				"hourUsed":       resp.Metadata.Quota.IndividualPerHourUsed,
-				"weekUsed":       resp.Metadata.Quota.RegisteredPerWeekUsed,
-				"payingWeekUsed": resp.Metadata.Quota.RegisteredPayingPerWeekUsed,
-			}
+			throttleSnapshot = throttleEnvelope(resp)
+			quotaSnapshot = quotaEnvelope(resp)
 
 			parsed, warnings := parseJSONBody(resp.Body)
 			combinedWarnings = append(combinedWarnings, warnings...)
@@ -876,6 +757,11 @@ func runPublishedSearchAll(cmd *cobra.Command, queries []string, constituents, r
 				if boolValue, ok := value.(bool); ok {
 					hasMore = boolValue
 				}
+			}
+			nextStart, nextEnd, belowCeiling := nextSearchWindow(currentEnd, pageSize)
+			if hasMore && len(items) > 0 && !belowCeiling {
+				combinedWarnings = append(combinedWarnings, searchCeilingWarning(total))
+				hasMore = false
 			}
 			if !hasMore || len(items) == 0 {
 				if sortMode != pubSearchSortNone {
@@ -909,35 +795,60 @@ func runPublishedSearchAll(cmd *cobra.Command, queries []string, constituents, r
 				break
 			}
 
-			currentStart = currentEnd + 1
-			currentEnd = currentStart + pageSize - 1
+			currentStart, currentEnd = nextStart, nextEnd
 		}
 	}
 
-	if len(batchResults) == 1 {
-		single := batchResults[0]
-		if ok, _ := single["ok"].(bool); ok {
-			return outputSuccess(cmd, responsePayload{
-				Service:    "published-data",
-				Request:    single["request"],
-				Pagination: single["pagination"],
-				Throttle:   single["throttle"],
-				Quota:      single["quota"],
-				Results:    single["results"],
-				Warnings:   toStringSlice(single["warnings"]),
-			})
-		}
-		return &epoerrors.CLIError{
-			Code:    1,
-			Type:    "GENERAL_ERROR",
-			Message: fmt.Sprintf("%v", single["error"]),
+	return finishBatch(cmd, "published-data", batchResults, searchBatchPayload("published-data"))
+}
+
+const (
+	// OPS search limits: "the maximum range is 100" per request and "the
+	// maximum total number of results is 2000" per query.
+	opsSearchMaxPageSize = 100
+	opsSearchMaxResults  = 2000
+)
+
+// allPagesWindow returns the first page window for auto-pagination: the
+// requested --range, or the largest page OPS allows when none was given.
+func allPagesWindow(rangeHeader string) (start int, end int, err error) {
+	if strings.TrimSpace(rangeHeader) == "" {
+		return 1, opsSearchMaxPageSize, nil
+	}
+	return parseRangeWindow(rangeHeader)
+}
+
+// nextSearchWindow advances a page window without crossing the OPS result
+// ceiling. ok is false once the ceiling has been reached.
+func nextSearchWindow(currentEnd, pageSize int) (start int, end int, ok bool) {
+	start = currentEnd + 1
+	if start > opsSearchMaxResults {
+		return 0, 0, false
+	}
+	end = start + pageSize - 1
+	if end > opsSearchMaxResults {
+		end = opsSearchMaxResults
+	}
+	return start, end, true
+}
+
+func searchCeilingWarning(total int) string {
+	return fmt.Sprintf("OPS returns at most %d results per query; %d matched. Narrow the query (for example with a pd date window) to retrieve the rest.", opsSearchMaxResults, total)
+}
+
+// searchBatchPayload unwraps a single search row into the full envelope.
+func searchBatchPayload(service string) func(single map[string]any) responsePayload {
+	return func(single map[string]any) responsePayload {
+		return responsePayload{
+			Service:    service,
+			Request:    single["request"],
+			Pagination: single["pagination"],
+			Throttle:   single["throttle"],
+			Quota:      single["quota"],
+			Results:    single["results"],
+			Warnings:   toStringSlice(single["warnings"]),
 		}
 	}
-
-	return outputSuccess(cmd, responsePayload{
-		Service: "published-data",
-		Results: batchResults,
-	})
 }
 
 func runPublishedSearchFlat(cmd *cobra.Command, queries []string, constituents, rangeHeader string, usePost bool, sortMode string) error {
@@ -948,33 +859,8 @@ func runPublishedSearchFlat(cmd *cobra.Command, queries []string, constituents, 
 
 	batchResults := make([]map[string]any, 0, len(queries))
 	for _, q := range queries {
-		request := api.Request{
-			Method: http.MethodGet,
-			Path:   path,
-			Accept: "application/json",
-		}
-		if strings.TrimSpace(rangeHeader) != "" {
-			request.Headers = map[string]string{
-				"Range": strings.TrimSpace(rangeHeader),
-			}
-		}
-		if usePost {
-			request.Method = http.MethodPost
-			request.ContentType = "text/plain"
-			request.Body = []byte("q=" + url.QueryEscape(q))
-		} else {
-			request.Query = url.Values{}
-			request.Query.Set("q", q)
-		}
-
-		requestMeta := map[string]any{
-			"method": request.Method,
-			"path":   request.Path,
-			"query":  compactQuery(request.Query),
-		}
-		if len(request.Headers) > 0 {
-			requestMeta["headers"] = request.Headers
-		}
+		request := buildSearchRequest(path, q, rangeHeader, usePost)
+		requestMeta := searchRequestMeta(request)
 
 		resp, err := executeOPSRequest(cmd.Context(), request)
 		if err != nil {
@@ -1000,44 +886,14 @@ func runPublishedSearchFlat(cmd *cobra.Command, queries []string, constituents, 
 			"ok":         true,
 			"request":    requestMeta,
 			"pagination": pagination,
-			"throttle": map[string]any{
-				"system":   resp.Metadata.Throttle.System,
-				"services": resp.Metadata.Throttle.Services,
-			},
-			"quota": map[string]int{
-				"hourUsed":       resp.Metadata.Quota.IndividualPerHourUsed,
-				"weekUsed":       resp.Metadata.Quota.RegisteredPerWeekUsed,
-				"payingWeekUsed": resp.Metadata.Quota.RegisteredPayingPerWeekUsed,
-			},
-			"results":  flatRows,
-			"warnings": warnings,
+			"throttle":   throttleEnvelope(resp),
+			"quota":      quotaEnvelope(resp),
+			"results":    flatRows,
+			"warnings":   warnings,
 		})
 	}
 
-	if len(batchResults) == 1 {
-		single := batchResults[0]
-		if ok, _ := single["ok"].(bool); ok {
-			return outputSuccess(cmd, responsePayload{
-				Service:    "published-data",
-				Request:    single["request"],
-				Pagination: single["pagination"],
-				Throttle:   single["throttle"],
-				Quota:      single["quota"],
-				Results:    single["results"],
-				Warnings:   toStringSlice(single["warnings"]),
-			})
-		}
-		return &epoerrors.CLIError{
-			Code:    1,
-			Type:    "GENERAL_ERROR",
-			Message: fmt.Sprintf("%v", single["error"]),
-		}
-	}
-
-	return outputSuccess(cmd, responsePayload{
-		Service: "published-data",
-		Results: batchResults,
-	})
+	return finishBatch(cmd, "published-data", batchResults, searchBatchPayload("published-data"))
 }
 
 func runPublishedSearchSummary(cmd *cobra.Command, queries []string, constituents, rangeHeader string, usePost bool, sortMode string, allPages bool) error {
@@ -1050,11 +906,10 @@ func runPublishedSearchSummary(cmd *cobra.Command, queries []string, constituent
 	for _, q := range queries {
 		items := []any{}
 		total := 0
-		currentRange := rangeHeader
-		if strings.TrimSpace(currentRange) == "" {
-			currentRange = "1-25"
+		start, end, rangeErr := parseRangeWindow(rangeHeader)
+		if allPages {
+			start, end, rangeErr = allPagesWindow(rangeHeader)
 		}
-		start, end, rangeErr := parseRangeWindow(currentRange)
 		if rangeErr != nil {
 			return &epoerrors.CLIError{
 				Code:    400,
@@ -1067,23 +922,9 @@ func runPublishedSearchSummary(cmd *cobra.Command, queries []string, constituent
 		fetchStart := start
 		fetchEnd := end
 
+		failed := false
 		for {
-			request := api.Request{
-				Method: http.MethodGet,
-				Path:   path,
-				Accept: "application/json",
-				Headers: map[string]string{
-					"Range": fmt.Sprintf("%d-%d", fetchStart, fetchEnd),
-				},
-			}
-			if usePost {
-				request.Method = http.MethodPost
-				request.ContentType = "text/plain"
-				request.Body = []byte("q=" + url.QueryEscape(q))
-			} else {
-				request.Query = url.Values{}
-				request.Query.Set("q", q)
-			}
+			request := buildSearchRequest(path, q, fmt.Sprintf("%d-%d", fetchStart, fetchEnd), usePost)
 
 			resp, err := executeOPSRequest(cmd.Context(), request)
 			if err != nil {
@@ -1092,6 +933,7 @@ func runPublishedSearchSummary(cmd *cobra.Command, queries []string, constituent
 					"ok":    false,
 					"error": mapError(err),
 				})
+				failed = true
 				break
 			}
 
@@ -1111,8 +953,14 @@ func runPublishedSearchSummary(cmd *cobra.Command, queries []string, constituent
 			if !hasMore || len(pageItems) == 0 {
 				break
 			}
-			fetchStart = fetchEnd + 1
-			fetchEnd = fetchStart + pageSize - 1
+			nextStart, nextEnd, belowCeiling := nextSearchWindow(fetchEnd, pageSize)
+			if !belowCeiling {
+				break
+			}
+			fetchStart, fetchEnd = nextStart, nextEnd
+		}
+		if failed {
+			continue
 		}
 
 		if sortMode != pubSearchSortNone {
@@ -1132,28 +980,15 @@ func runPublishedSearchSummary(cmd *cobra.Command, queries []string, constituent
 		})
 	}
 
-	if len(batch) == 1 {
-		single := batch[0]
-		if ok, _ := single["ok"].(bool); ok {
-			return outputSuccess(cmd, responsePayload{
-				Service: "published-data",
-				Results: map[string]any{
-					"query":      single["query"],
-					"total":      single["total"],
-					"topResults": single["topResults"],
-				},
-			})
+	return finishBatch(cmd, "published-data", batch, func(single map[string]any) responsePayload {
+		return responsePayload{
+			Service: "published-data",
+			Results: map[string]any{
+				"query":      single["query"],
+				"total":      single["total"],
+				"topResults": single["topResults"],
+			},
 		}
-		return &epoerrors.CLIError{
-			Code:    1,
-			Type:    "GENERAL_ERROR",
-			Message: fmt.Sprintf("%v", single["error"]),
-		}
-	}
-
-	return outputSuccess(cmd, responsePayload{
-		Service: "published-data",
-		Results: batch,
 	})
 }
 
@@ -1163,9 +998,9 @@ func extractPublishedSearchItems(parsed any) ([]any, bool) {
 		return nil, false
 	}
 
-	world := asMap(root["ops:world-patent-data"])
-	search := asMap(world["ops:biblio-search"])
-	result := asMap(search["ops:search-result"])
+	world := asAnyMap(root["ops:world-patent-data"])
+	search := asAnyMap(world["ops:biblio-search"])
+	result := asAnyMap(search["ops:search-result"])
 
 	if exchangeDocsRaw, ok := result["exchange-documents"]; ok {
 		if docs, ok := asAnySlice(exchangeDocsRaw); ok {
@@ -1389,7 +1224,7 @@ func attachKindCode(reference, inputFormat, kindCode string) string {
 	if reference == "" || kindCode == "" {
 		return reference
 	}
-	if strings.Contains(strings.ToUpper(reference), kindCode) {
+	if strings.HasSuffix(strings.ToUpper(reference), kindCode) {
 		return reference
 	}
 	if inputFormat == "docdb" || looksDocdbPublicationReference(reference) {
@@ -1444,17 +1279,11 @@ func executeOPSRequestWithBase(ctx context.Context, request api.Request, baseURL
 	ctx, cancel := context.WithTimeout(ctx, time.Duration(flagTimeout)*time.Second)
 	defer cancel()
 
-	httpClient := &http.Client{Timeout: time.Duration(flagTimeout) * time.Second}
-	tokenManager := auth.NewTokenManager(httpClient, clientID, clientSecret, 2*time.Minute)
-	opsClient := api.NewClient(httpClient, tokenManager)
+	opsClient := api.NewClient(newOPSHTTPClient(), sharedTokenManager(clientID, clientSecret))
 	if strings.TrimSpace(baseURL) != "" {
 		opsClient.SetBaseURL(baseURL)
 	}
 	return opsClient.Do(ctx, request)
-}
-
-func outputPublishedResponse(cmd *cobra.Command, requestMeta map[string]any, resp api.Response) error {
-	return outputOPSResponse(cmd, "published-data", requestMeta, resp, parseSearchPagination)
 }
 
 func isOneOf(value string, options ...string) bool {
@@ -1546,17 +1375,10 @@ func outputOPSResponse(cmd *cobra.Command, service string, requestMeta map[strin
 		Service:    service,
 		Request:    requestMeta,
 		Pagination: pagination,
-		Throttle: map[string]any{
-			"system":   resp.Metadata.Throttle.System,
-			"services": resp.Metadata.Throttle.Services,
-		},
-		Quota: map[string]int{
-			"hourUsed":       resp.Metadata.Quota.IndividualPerHourUsed,
-			"weekUsed":       resp.Metadata.Quota.RegisteredPerWeekUsed,
-			"payingWeekUsed": resp.Metadata.Quota.RegisteredPayingPerWeekUsed,
-		},
-		Results:  results,
-		Warnings: warnings,
+		Throttle:   throttleEnvelope(resp),
+		Quota:      quotaEnvelope(resp),
+		Results:    results,
+		Warnings:   warnings,
 	}
 	return outputSuccess(cmd, payload)
 }
@@ -1830,12 +1652,22 @@ func dedupeFlatPublicationRows(rows []map[string]any) []map[string]any {
 }
 
 func parseSearchPagination(results any) map[string]any {
+	return searchPaginationFrom(results, "ops:biblio-search")
+}
+
+func parseRegisterSearchPagination(results any) map[string]any {
+	return searchPaginationFrom(results, "ops:register-search")
+}
+
+// searchPaginationFrom reads total-result-count and ops:range from an OPS
+// search container (ops:biblio-search or ops:register-search).
+func searchPaginationFrom(results any, searchKey string) map[string]any {
 	root, ok := results.(map[string]any)
 	if !ok {
 		return nil
 	}
-	worldPatentData := asMap(root["ops:world-patent-data"])
-	biblioSearch := asMap(worldPatentData["ops:biblio-search"])
+	worldPatentData := asAnyMap(root["ops:world-patent-data"])
+	biblioSearch := asAnyMap(worldPatentData[searchKey])
 	if len(biblioSearch) == 0 {
 		return nil
 	}
@@ -1845,7 +1677,7 @@ func parseSearchPagination(results any) map[string]any {
 		out["total"] = total
 	}
 
-	rangeMap := asMap(biblioSearch["ops:range"])
+	rangeMap := asAnyMap(biblioSearch["ops:range"])
 	begin := atoiAny(rangeMap["@begin"])
 	end := atoiAny(rangeMap["@end"])
 	if begin > 0 && end >= begin {
@@ -1877,13 +1709,6 @@ func mergePagination(primary, secondary map[string]any) map[string]any {
 		out[key] = value
 	}
 	return out
-}
-
-func asMap(v any) map[string]any {
-	if m, ok := v.(map[string]any); ok {
-		return m
-	}
-	return map[string]any{}
 }
 
 func atoiAny(v any) int {

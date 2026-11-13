@@ -191,24 +191,11 @@ func runNumberConvertFlat(cmd *cobra.Command, references []string, refType, from
 		rows = append(rows, row)
 	}
 
-	if len(rows) == 1 {
-		single := rows[0]
-		if ok, _ := single["ok"].(bool); ok {
-			return outputSuccess(cmd, responsePayload{
-				Service: "number-service",
-				Results: single,
-			})
+	return finishBatch(cmd, "number-service", rows, func(single map[string]any) responsePayload {
+		return responsePayload{
+			Service: "number-service",
+			Results: single,
 		}
-		return &epoerrors.CLIError{
-			Code:    1,
-			Type:    "GENERAL_ERROR",
-			Message: fmt.Sprintf("%v", single["error"]),
-		}
-	}
-
-	return outputSuccess(cmd, responsePayload{
-		Service: "number-service",
-		Results: rows,
 	})
 }
 

@@ -38,9 +38,9 @@ go test ./tests/integration -v -count=1 -timeout 600s
 ## Release Notes
 
 The release workflow is tag-driven (`v*`) and injects binary version metadata with `-ldflags`.
-Use `powershell -ExecutionPolicy Bypass -File tools/release.ps1 -Bump patch|minor|major`
-to run tests, bump version metadata, update `CHANGELOG.md`, sync repo-owned skills,
-create the release commit/tag, and push GitHub.
+Maintainers cut a release by updating `CHANGELOG.md` and the default version in
+`internal/cli/root.go`, then pushing a `v*` tag. The maintainer's local release helper
+script is intentionally not part of this repository.
 
 ## License
 
