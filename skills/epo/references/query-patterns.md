@@ -70,7 +70,7 @@ Avoid `pd>=YYYYMMDD`; the CLI validates and rejects this pattern.
 ## Pagination and Batch
 
 1. Use `--all` only after validating shape and quota.
-2. Use `--sort pub-date-desc` with `--all` for global chronological output.
+2. Use `--sort pub-date-desc` with `--all` for global chronological output. `--sort` is client-side: without `--all` it orders one page (25 rows), and `--summary` / `pub recent` add a warning plus `results.complete: false` when more results matched than were examined. Above 2000 matches even `--all` is partial; narrow the `pd` window.
 3. Use stdin mode for repeatable batch jobs:
 ```bash
 cat refs.txt | epo pub biblio --stdin --flat -f json -q

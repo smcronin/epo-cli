@@ -383,7 +383,7 @@
       },
       {
         "name": "--sort",
-        "description": "Sort results by publication date (pub-date-asc|pub-date-desc)"
+        "description": "Client-side sort of the rows fetched, one page unless --all (pub-date-asc|pub-date-desc)"
       },
       {
         "name": "--stdin",
@@ -399,7 +399,7 @@
       },
       {
         "name": "--summary",
-        "description": "Agent summary output {query,total,topResults}"
+        "description": "Agent summary {query,total,examined,sortedBy,complete,topResults}; topResults come from the rows fetched (one page unless --all)"
       },
       {
         "name": "--flat-pick",
@@ -452,7 +452,7 @@
       },
       {
         "name": "--summary",
-        "description": "Return agent summary"
+        "description": "Agent summary {query,total,examined,sortedBy,complete,topResults}; topResults come from the rows fetched (one page unless --all)"
       },
       {
         "name": "--flat",
@@ -460,17 +460,18 @@
       },
       {
         "name": "--sort",
+        "description": "Client-side sort of the rows fetched, one page unless --all",
         "default": "pub-date-desc"
       },
       {
         "name": "--all",
-        "description": "Auto-paginate all results"
+        "description": "Auto-paginate all results (needed for a true most-recent list; OPS caps a query at 2000)"
       }
     ],
-    "outputShapeHint": "Published-data envelope with search results (delegates to pub search)",
+    "outputShapeHint": "Published-data envelope with search results (delegates to pub search); without --all the rows are one sorted page, not the newest of all matches",
     "examples": [
-      "epo pub recent --cpc G06N --days 30 --summary -f json -q",
-      "epo pub recent --applicant \"SAP SE\" --days 7 --summary -f json -q"
+      "epo pub recent --applicant \"SAP SE\" --days 7 --all --summary -f json -q",
+      "epo pub recent --cpc G06N --days 30 --summary -f json -q"
     ]
   },
   {

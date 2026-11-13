@@ -18,7 +18,9 @@ epo usage quota -f json -q
 1. "Find recent patents / quick shortlist":
 ```bash
 epo pub search --query 'applicant="SAP SE" and pd within "20250101 20260305"' --summary -f json -q
+epo pub recent --applicant "SAP SE" --days 7 --all --summary -f json -q
 ```
+`--summary` returns `{query,total,examined,sortedBy,complete,topResults}`. `topResults` are taken from the `examined` rows only (one page of 25 unless `--all`), and `--sort` is applied client-side to those rows. When `complete` is `false` a warning says so; add `--all` (up to 2000 results) or narrow the date window for a true most-recent list.
 
 2. "Fetch publication detail":
 ```bash

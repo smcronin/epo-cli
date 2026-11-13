@@ -30,7 +30,8 @@ epo auth check -f json -q
 # Search with biblio-enriched flat output
 epo pub search --query "applicant=\"SAP SE\" and pd within \"20250101 20260305\"" --all --sort pub-date-desc --flat --enrich -f json -q
 
-# Agent summary output
+# Agent summary output: {query,total,examined,sortedBy,complete,topResults}
+# topResults come from the rows examined (one page unless --all); check results.complete
 epo pub search --query "applicant=IBM" --summary --flat-pick "reference,title,pubDate" -f json -q
 
 # Biblio + family + legal

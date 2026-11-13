@@ -20,6 +20,7 @@ All notable changes to this project will be documented in this file.
 - An OPS 403 quota or fair-use rejection (an `X-Rejection-Reason` header, or a "Fair Use" body) is reported as `RATE_LIMITED` (exit 5) instead of `AUTH_FAILURE` (exit 3). The hint quotes the reason and says credentials are not the problem, and the raw header value is exposed as `error.reason`. A 403 "Developer account is blocked" and any other 403 stay `AUTH_FAILURE` but no longer tell you to verify credentials; 401 is unchanged
 - A 403 is retried only when OPS sends a `Retry-After` that fits the remaining `--timeout`
 - An EPS 403 no longer says "verify client credentials" (EPS takes none)
+- `epo pub search --summary --all` warns when it stops at the OPS ceiling of 2000 results (it stopped silently)
 - A `--pick` field that matches nothing adds a `warnings` entry instead of silently returning empty rows
 - `--pick` on a `--stdin` batch with a failed input keeps the successful inputs' rows and each failed input's `input`/`query`/`ok`/`error` (it used to return one empty object per input)
 - `--summary` with `--pick` / `--flat-pick` projects the `topResults` rows and keeps the summary counts (it used to return an empty `results` object)
@@ -27,6 +28,8 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - **Breaking:** `--pick` keeps the shape of its input. A list result stays a `results` array when exactly one row matches (it used to collapse to a single object), and the same holds for each input's `results` in a `--stdin` batch. Single-record commands such as `number convert` and `auth check` still return an object. Consumers that read a single-hit pick as an object must read `results[0]`
 - **Breaking:** `--pick` projects the envelope only when every field is an explicit envelope path (`results.x`, `pagination.x`, `quota.x`, `throttle.x`, `request.x`, `warnings`). Bare names such as `command`, `service`, `ok` or `pagination` now resolve against the result rows, so `epo methods --pick command,summary` returns every row instead of one envelope object
+- `--summary` output (`epo pub search --summary`, `epo pub recent --summary`) gains `examined` (rows fetched), `sortedBy` and `complete` (`examined >= total`), and its envelope gains `pagination`. `topResults` is unchanged
+- A client-side sort that covered only part of the matches now says so: `--summary` and the flat sorted page (`epo pub recent`, `epo pub search --sort ...` without `--all`) add a warning naming the rows fetched and the total. No extra OPS calls are made. Help text and examples for `pub recent` no longer imply a true most-recent list without `--all`
 - `--all` without `--range` requests 100 results per page (the OPS maximum) instead of 25; pass `--range 1-25 --all` to keep the smaller pages
 - One OAuth token is requested per process and reused across OPS requests
 - `epo methods` describes the default cpc output accurately; skill docs now cover the `eps` and `update` command groups

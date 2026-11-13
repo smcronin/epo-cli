@@ -159,13 +159,185 @@ func TestPubSearchSummaryAllStopsAtOPSCeiling(t *testing.T) {
 	stub := installOPSStub(t, searchPageStub(t, "ops:biblio-search", 5000, 2000))
 	setGlobalFlag(t, &flagAll, true)
 
-	_, err := runForTest(t, newPubCmd(), "search", "--query", "applicant=IBM", "--summary")
+	out, err := runForTest(t, newPubCmd(), "search", "--query", "applicant=IBM", "--summary", "--sort", "pub-date-desc")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", mapError(err).Message)
 	}
 	ranges := requestedRanges(stub)
 	if len(ranges) != 20 || ranges[len(ranges)-1] != "1901-2000" {
 		t.Fatalf("expected 20 pages ending at 1901-2000, got %d: %v", len(ranges), ranges)
+	}
+
+	env := parseSummaryEnvelope(t, out)
+	if env.Results.Total != 5000 || env.Results.Examined != 2000 || env.Results.Complete {
+		t.Fatalf("expected total=5000 examined=2000 complete=false, got %+v", env.Results)
+	}
+	if env.Pagination.PagesFetched != 20 || env.Pagination.Returned != 2000 {
+		t.Fatalf("unexpected pagination: %+v", env.Pagination)
+	}
+	if !hasWarning(env.Warnings, "at most 2000 results per query", "5000") {
+		t.Fatalf("expected the OPS ceiling warning, got %v", env.Warnings)
+	}
+	if !hasWarning(env.Warnings, "topResults are the 10 most recent of the 2000 results fetched", "5000", "Narrow the query") {
+		t.Fatalf("expected a warning that the sort covers only the fetched rows, got %v", env.Warnings)
+	}
+}
+
+type summaryEnvelope struct {
+	OK      bool `json:"ok"`
+	Results struct {
+		Query      string            `json:"query"`
+		Total      int               `json:"total"`
+		Examined   int               `json:"examined"`
+		SortedBy   string            `json:"sortedBy"`
+		Complete   bool              `json:"complete"`
+		TopResults []json.RawMessage `json:"topResults"`
+	} `json:"results"`
+	Pagination struct {
+		Offset       int `json:"offset"`
+		Limit        int `json:"limit"`
+		Total        int `json:"total"`
+		PagesFetched int `json:"pagesFetched"`
+		Returned     int `json:"returned"`
+	} `json:"pagination"`
+	Warnings []string `json:"warnings"`
+}
+
+func parseSummaryEnvelope(t *testing.T, out string) summaryEnvelope {
+	t.Helper()
+	var env summaryEnvelope
+	if err := json.Unmarshal([]byte(out), &env); err != nil {
+		t.Fatalf("parse output: %v: %.300s", err, out)
+	}
+	return env
+}
+
+// hasWarning reports whether one warning contains every fragment.
+func hasWarning(warnings []string, fragments ...string) bool {
+	for _, warning := range warnings {
+		matched := true
+		for _, fragment := range fragments {
+			if !strings.Contains(warning, fragment) {
+				matched = false
+				break
+			}
+		}
+		if matched {
+			return true
+		}
+	}
+	return false
+}
+
+func TestPubSearchSummaryLabelsASortedFirstPage(t *testing.T) {
+	stub := installOPSStub(t, searchPageStub(t, "ops:biblio-search", 500, 2000))
+
+	out, err := runForTest(t, newPubCmd(), "search", "--query", "x", "--summary", "--sort", "pub-date-desc")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", mapError(err).Message)
+	}
+	if got := len(stub.dataRequests()); got != 1 {
+		t.Fatalf("honest labelling must not add OPS calls, got %d requests", got)
+	}
+
+	env := parseSummaryEnvelope(t, out)
+	if env.Results.Total != 500 || env.Results.Examined != 25 || env.Results.Complete {
+		t.Fatalf("expected total=500 examined=25 complete=false, got %+v", env.Results)
+	}
+	if env.Results.SortedBy != "pub-date-desc" || len(env.Results.TopResults) != 10 {
+		t.Fatalf("unexpected summary: sortedBy=%q topResults=%d", env.Results.SortedBy, len(env.Results.TopResults))
+	}
+	if env.Pagination.Total != 500 || env.Pagination.Returned != 25 || env.Pagination.PagesFetched != 1 || env.Pagination.Limit != 25 {
+		t.Fatalf("unexpected pagination: %+v", env.Pagination)
+	}
+	if len(env.Warnings) != 1 || !hasWarning(env.Warnings, "topResults are the 10 most recent of the 25 results fetched (range 1-25)", "out of 500 matches", "--all") {
+		t.Fatalf("expected one warning naming 25 and 500, got %v", env.Warnings)
+	}
+}
+
+func TestPubSearchSummaryCompleteWhenEveryMatchWasExamined(t *testing.T) {
+	installOPSStub(t, searchPageStub(t, "ops:biblio-search", 10, 2000))
+
+	out, err := runForTest(t, newPubCmd(), "search", "--query", "x", "--summary", "--sort", "pub-date-desc")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", mapError(err).Message)
+	}
+	env := parseSummaryEnvelope(t, out)
+	if env.Results.Total != 10 || env.Results.Examined != 10 || !env.Results.Complete {
+		t.Fatalf("expected total=10 examined=10 complete=true, got %+v", env.Results)
+	}
+	if len(env.Warnings) != 0 {
+		t.Fatalf("unexpected warnings: %v", env.Warnings)
+	}
+}
+
+func TestPubSearchSummaryUnsortedPageIsIncompleteWithoutSortWarning(t *testing.T) {
+	installOPSStub(t, searchPageStub(t, "ops:biblio-search", 500, 2000))
+
+	out, err := runForTest(t, newPubCmd(), "search", "--query", "x", "--summary")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", mapError(err).Message)
+	}
+	env := parseSummaryEnvelope(t, out)
+	if env.Results.Examined != 25 || env.Results.Complete || env.Results.SortedBy != "none" {
+		t.Fatalf("expected examined=25 complete=false sortedBy=none, got %+v", env.Results)
+	}
+	if len(env.Warnings) != 0 {
+		t.Fatalf("no sort was requested, so no sort warning is due: %v", env.Warnings)
+	}
+}
+
+func TestPubRecentSummaryWarnsThatTheSortCoversOnePage(t *testing.T) {
+	stub := installOPSStub(t, searchPageStub(t, "ops:biblio-search", 500, 2000))
+
+	out, err := runForTest(t, newPubCmd(), "recent", "--cpc", "G06N", "--summary")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", mapError(err).Message)
+	}
+	if got := len(stub.dataRequests()); got != 1 {
+		t.Fatalf("expected a single request, got %d", got)
+	}
+	env := parseSummaryEnvelope(t, out)
+	if env.Results.SortedBy != "pub-date-desc" || env.Results.Examined != 25 || env.Results.Complete {
+		t.Fatalf("unexpected summary: %+v", env.Results)
+	}
+	if !hasWarning(env.Warnings, "most recent of the 25 results fetched", "out of 500 matches") {
+		t.Fatalf("expected a warning naming 25 and 500, got %v", env.Warnings)
+	}
+}
+
+func TestSortedFlatPageWarnsWhenMoreResultsExist(t *testing.T) {
+	cases := []struct {
+		name      string
+		total     int
+		args      []string
+		wantWarns bool
+	}{
+		{"pub search sorted page of many", 500, []string{"search", "--query", "x", "--sort", "pub-date-desc"}, true},
+		{"pub recent page of many", 500, []string{"recent", "--cpc", "G06N"}, true},
+		{"pub search sorted, everything fetched", 10, []string{"search", "--query", "x", "--sort", "pub-date-desc"}, false},
+		{"pub search unsorted page of many", 500, []string{"search", "--query", "x", "--flat"}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			stub := installOPSStub(t, searchPageStub(t, "ops:biblio-search", tc.total, 2000))
+
+			out, err := runForTest(t, newPubCmd(), tc.args...)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", mapError(err).Message)
+			}
+			if got := len(stub.dataRequests()); got != 1 {
+				t.Fatalf("expected a single request, got %d", got)
+			}
+			env := parseSearchEnvelope(t, out)
+			warned := hasWarning(env.Warnings, "Rows are sorted within the 25 results fetched (range 1-25) only", "out of 500 matches")
+			if warned != tc.wantWarns {
+				t.Fatalf("sort warning present=%v, want %v: %v", warned, tc.wantWarns, env.Warnings)
+			}
+			if !tc.wantWarns && len(env.Warnings) != 0 {
+				t.Fatalf("unexpected warnings: %v", env.Warnings)
+			}
+		})
 	}
 }
 
