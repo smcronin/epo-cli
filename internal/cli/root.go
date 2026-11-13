@@ -44,10 +44,37 @@ type successEnvelope struct {
 	Version    string   `json:"version"`
 }
 
+// errorEnvelope is the failure envelope. The fields between error and
+// version are set only for a partial failure: an --all run that failed after
+// at least one page, where the rows fetched so far are returned with the
+// error instead of being thrown away.
 type errorEnvelope struct {
-	OK      bool                `json:"ok"`
-	Error   *epoerrors.CLIError `json:"error"`
-	Version string              `json:"version"`
+	OK         bool                `json:"ok"`
+	Partial    bool                `json:"partial,omitempty"`
+	Error      *epoerrors.CLIError `json:"error"`
+	Command    string              `json:"command,omitempty"`
+	Service    string              `json:"service,omitempty"`
+	Request    any                 `json:"request,omitempty"`
+	Pagination any                 `json:"pagination,omitempty"`
+	Results    any                 `json:"results,omitempty"`
+	Warnings   []string            `json:"warnings,omitempty"`
+	Version    string              `json:"version"`
+}
+
+// partialError is returned when an --all run fails mid-way. It unwraps to the
+// original typed error, so the error type and exit code are unchanged, and
+// carries the envelope of what was fetched before the failure.
+type partialError struct {
+	cause    *epoerrors.CLIError
+	envelope successEnvelope
+}
+
+func (e *partialError) Error() string {
+	return e.cause.Error()
+}
+
+func (e *partialError) Unwrap() error {
+	return e.cause
 }
 
 type responsePayload struct {
@@ -953,16 +980,46 @@ func textValue(v any) string {
 
 func handleError(err error) int {
 	cliErr := mapError(err)
+	var partial *partialError
+	hasPartial := errors.As(err, &partial)
+
 	if flagFormat == "json" {
-		_ = writeJSON(errorEnvelope{
+		env := errorEnvelope{
 			OK:      false,
 			Error:   cliErr,
 			Version: version,
-		})
+		}
+		if hasPartial {
+			env.Partial = true
+			env.Command = partial.envelope.Command
+			env.Service = partial.envelope.Service
+			env.Request = partial.envelope.Request
+			env.Pagination = partial.envelope.Pagination
+			env.Results = partial.envelope.Results
+			env.Warnings = partial.envelope.Warnings
+		}
+		_ = writeJSON(env)
 	} else {
+		if hasPartial {
+			// The rows fetched before the failure go to stdout through the
+			// normal writer; the error still goes to stderr.
+			switch flagFormat {
+			case "ndjson":
+				_ = writeNDJSON(partial.envelope)
+			case "csv":
+				_ = writeCSV(partial.envelope)
+			case "table":
+				_ = writeTable(partial.envelope)
+			}
+		}
 		fmt.Fprintf(os.Stderr, "Error: %s\n", cliErr.Message)
 		if cliErr.Hint != "" {
 			fmt.Fprintf(os.Stderr, "Hint: %s\n", cliErr.Hint)
+		}
+		if hasPartial {
+			for _, warning := range partial.envelope.Warnings {
+				fmt.Fprintf(os.Stderr, "Warning: %s\n", warning)
+			}
 		}
 	}
 	return mapExitCode(cliErr)

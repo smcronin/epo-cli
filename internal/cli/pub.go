@@ -737,11 +737,30 @@ func runPublishedSearchAll(cmd *cobra.Command, queries []string, constituents, r
 
 			resp, err := executeOPSRequest(cmd.Context(), request)
 			if err != nil {
-				batchResults = append(batchResults, map[string]any{
-					"query": q,
-					"ok":    false,
-					"error": mapError(err),
-				})
+				batchResults = append(batchResults, allFailureRow(q, err, pages, func() map[string]any {
+					if sortMode != pubSearchSortNone {
+						sortPublishedSearchItems(allItems, sortMode)
+					}
+					var resultPayload any = allItems
+					if flatMode {
+						resultPayload = flattenPublishedSearchItems(allItems)
+					}
+					failedRange := fmt.Sprintf("%d-%d", currentStart, currentEnd)
+					combinedWarnings = append(combinedWarnings, partialAllWarning(pages, len(allItems), retrievableSearchResults(total), failedRange))
+					return map[string]any{
+						"request": map[string]any{
+							"method": request.Method,
+							"path":   request.Path,
+							"query":  compactQuery(request.Query),
+							"all":    true,
+						},
+						"pagination": partialPagination(start, pageSize, total, pages, len(allItems), failedRange),
+						"throttle":   throttleSnapshot,
+						"quota":      quotaSnapshot,
+						"results":    resultPayload,
+						"warnings":   joinAndSortUnique(combinedWarnings),
+					}
+				}))
 				break
 			}
 
@@ -840,6 +859,15 @@ func nextSearchWindow(currentEnd, pageSize int) (start int, end int, ok bool) {
 		end = opsSearchMaxResults
 	}
 	return start, end, true
+}
+
+// retrievableSearchResults is how many of total matches a published-data
+// search can return: OPS stops at opsSearchMaxResults per query.
+func retrievableSearchResults(total int) int {
+	if total > opsSearchMaxResults {
+		return opsSearchMaxResults
+	}
+	return total
 }
 
 func searchCeilingWarning(total int) string {
@@ -945,11 +973,13 @@ func runPublishedSearchSummary(cmd *cobra.Command, queries []string, constituent
 
 			resp, err := executeOPSRequest(cmd.Context(), request)
 			if err != nil {
-				batch = append(batch, map[string]any{
-					"query": q,
-					"ok":    false,
-					"error": mapError(err),
-				})
+				batch = append(batch, allFailureRow(q, err, pages, func() map[string]any {
+					failedRange := fmt.Sprintf("%d-%d", fetchStart, fetchEnd)
+					warnings = append(warnings, partialAllWarning(pages, len(items), retrievableSearchResults(total), failedRange)+" topResults cover only the rows fetched so far.")
+					row := summaryRow(q, items, total, sortMode, warnings)
+					row["pagination"] = partialPagination(start, pageSize, total, pages, len(items), failedRange)
+					return row
+				}))
 				failed = true
 				break
 			}
@@ -982,35 +1012,20 @@ func runPublishedSearchSummary(cmd *cobra.Command, queries []string, constituent
 			continue
 		}
 
-		if sortMode != pubSearchSortNone {
-			sortPublishedSearchItems(items, sortMode)
-		}
-		topResults := flattenPublishedSearchItems(items)
-		if len(topResults) > summaryTopResults {
-			topResults = topResults[:summaryTopResults]
-		}
-		examined := len(items)
-		if sortMode != pubSearchSortNone && total > examined {
+		row := summaryRow(q, items, total, sortMode, warnings)
+		if topResults := row["topResults"].([]map[string]any); sortMode != pubSearchSortNone && total > len(items) {
 			subject := fmt.Sprintf("topResults are the %d %s of", len(topResults), sortOrderLabel(sortMode))
-			warnings = append(warnings, pageSortWarning(subject, examined, total, start, sortMode, allPages))
+			row["warnings"] = append(warnings, pageSortWarning(subject, len(items), total, start, sortMode, allPages))
 		}
-		batch = append(batch, map[string]any{
-			"query":      q,
-			"ok":         true,
-			"total":      total,
-			"examined":   examined,
-			"sortedBy":   sortMode,
-			"complete":   examined >= total,
-			"topResults": topResults,
-			"pagination": map[string]any{
-				"offset":       start,
-				"limit":        pageSize,
-				"total":        total,
-				"pagesFetched": pages,
-				"returned":     examined,
-			},
-			"warnings": warnings,
-		})
+		row["ok"] = true
+		row["pagination"] = map[string]any{
+			"offset":       start,
+			"limit":        pageSize,
+			"total":        total,
+			"pagesFetched": pages,
+			"returned":     len(items),
+		}
+		batch = append(batch, row)
 	}
 
 	return finishBatch(cmd, "published-data", batch, func(single map[string]any) responsePayload {
@@ -1032,6 +1047,29 @@ func runPublishedSearchSummary(cmd *cobra.Command, queries []string, constituent
 
 // summaryTopResults is how many rows a --summary keeps.
 const summaryTopResults = 10
+
+// summaryRow builds the summary keys for the rows examined so far: the
+// counts, the sort label, whether every match was examined, and the top rows.
+// The caller adds ok and pagination.
+func summaryRow(query string, items []any, total int, sortMode string, warnings []string) map[string]any {
+	if sortMode != pubSearchSortNone {
+		sortPublishedSearchItems(items, sortMode)
+	}
+	topResults := flattenPublishedSearchItems(items)
+	if len(topResults) > summaryTopResults {
+		topResults = topResults[:summaryTopResults]
+	}
+	examined := len(items)
+	return map[string]any{
+		"query":      query,
+		"total":      total,
+		"examined":   examined,
+		"sortedBy":   sortMode,
+		"complete":   examined >= total,
+		"topResults": topResults,
+		"warnings":   warnings,
+	}
+}
 
 func sortOrderLabel(sortMode string) string {
 	if sortMode == pubSearchSortDateAsc {

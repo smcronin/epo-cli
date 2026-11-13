@@ -14,7 +14,8 @@ import (
 //     request.x or warnings). Bare names resolve against the result rows, so
 //     a row field called "command" or "ok" is not shadowed by the envelope.
 //   - A pick field that matches nothing adds a warning instead of vanishing.
-//   - Failed rows of a batch keep input/query/ok/error.
+//   - Failed rows of a batch keep input/query/ok/error (and, for a partial
+//     --all failure, partial/pagination/warnings plus their projected rows).
 
 // pickEnvelopeSections are the envelope sections a pick path can reach into.
 var pickEnvelopeSections = []string{"results", "pagination", "quota", "throttle", "request"}
@@ -145,19 +146,19 @@ func (p *pickProjector) projectValue(value any) any {
 
 func (p *pickProjector) projectListRow(row map[string]any) map[string]any {
 	switch {
-	case isFailedBatchRow(row):
-		out := batchRowIdentity(row)
-		for _, field := range p.fields {
-			if value, ok := lookupProjectionValue(row, field); ok {
-				out[field] = value
-			}
-		}
-		return out
 	case isSummaryObject(row):
 		out := p.projectSummary(row)
 		for key, value := range batchRowIdentity(row) {
 			if _, exists := out[key]; !exists {
 				out[key] = value
+			}
+		}
+		return out
+	case isFailedBatchRow(row):
+		out := batchRowIdentity(row)
+		for _, field := range p.fields {
+			if value, ok := lookupProjectionValue(row, field); ok {
+				out[field] = value
 			}
 		}
 		return out
@@ -256,9 +257,16 @@ func (p *pickProjector) projectBatch(value any) ([]map[string]any, bool) {
 	return projected, true
 }
 
+// batchRowIdentity returns the keys of a batch row that --pick never drops:
+// which input it is, whether it worked, its error, and for a partial --all
+// failure how far it got and how to resume.
 func batchRowIdentity(row map[string]any) map[string]any {
+	keys := []string{"input", "query", "ok", "error"}
+	if partial, _ := row["partial"].(bool); partial {
+		keys = append(keys, "partial", "pagination", "warnings")
+	}
 	out := map[string]any{}
-	for _, key := range []string{"input", "query", "ok", "error"} {
+	for _, key := range keys {
 		if value, exists := row[key]; exists {
 			out[key] = value
 		}

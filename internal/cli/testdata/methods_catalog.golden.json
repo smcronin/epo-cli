@@ -379,7 +379,7 @@
       },
       {
         "name": "--all",
-        "description": "Auto-paginate all results"
+        "description": "Auto-paginate all results; a mid-run failure returns partial:true with the rows so far and pagination.resumeRange"
       },
       {
         "name": "--sort",
@@ -834,7 +834,7 @@
       },
       {
         "name": "--all",
-        "description": "Auto-paginate all results"
+        "description": "Auto-paginate all results; a mid-run failure returns partial:true with the rows so far and pagination.resumeRange"
       },
       {
         "name": "--stdin",

@@ -111,6 +111,10 @@ Stable JSON envelope:
 }
 ```
 
+Failures use `{"ok": false, "error": {"code", "type", "message", "hint"}, "version"}` and a typed exit code (2 usage, 3 auth, 4 not found, 5 rate limited, 6 server error). `error.reason` carries the raw `X-Rejection-Reason` when OPS rejects a request for quota reasons (403, reported as rate limited).
+
+If an `--all` run fails after at least one page, the error envelope also has `partial: true`, the rows fetched so far in `results`, and `pagination.resumeRange`; rerun with `--range <resumeRange> --all` to continue. `ok` and the exit code are the same as for any other failure.
+
 ## Release and Versioning
 
 - Tag format: `v*` (for example `v0.1.0`)

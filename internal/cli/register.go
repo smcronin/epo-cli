@@ -480,11 +480,23 @@ func runRegisterSearchAll(cmd *cobra.Command, queries []string, rangeHeader stri
 
 			resp, err := executeOPSRequest(cmd.Context(), request)
 			if err != nil {
-				batchResults = append(batchResults, map[string]any{
-					"query": q,
-					"ok":    false,
-					"error": mapError(err),
-				})
+				batchResults = append(batchResults, allFailureRow(q, err, pages, func() map[string]any {
+					failedRange := fmt.Sprintf("%d-%d", currentStart, currentEnd)
+					combinedWarnings = append(combinedWarnings, partialAllWarning(pages, len(allItems), total, failedRange))
+					return map[string]any{
+						"request": map[string]any{
+							"method": request.Method,
+							"path":   request.Path,
+							"query":  compactQuery(request.Query),
+							"all":    true,
+						},
+						"pagination": partialPagination(start, pageSize, total, pages, len(allItems), failedRange),
+						"throttle":   throttleSnapshot,
+						"quota":      quotaSnapshot,
+						"results":    allItems,
+						"warnings":   joinAndSortUnique(combinedWarnings),
+					}
+				}))
 				break
 			}
 			pages++

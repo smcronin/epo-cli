@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- An `--all` run that fails after at least one page (`epo pub search --all`, `epo pub search --summary --all`, `epo pub recent --all`, `epo register search --all`) no longer throws away what it fetched. The error envelope keeps `ok:false`, the same `error` object and the same exit code, and adds `partial:true`, `command`, `service`, `request`, `pagination` (`pagesFetched`, `returned`, `failedRange`, `resumeRange`), the rows fetched so far in `results` and a warning with the resume command. Rerun with `--range <resumeRange> --all` to fetch the rest. A first-page failure is unchanged. With `-f ndjson|csv|table` the fetched rows go to stdout and the error to stderr. In a `--stdin` batch the failed query's row carries `partial`, `pagination` and `results` next to `ok:false` and `error`
+
 ### Fixed
 - `epo pub search --summary` and `epo pub recent --summary` no longer exit 0 with a fake `ok:true, total:0` row when the query fails; the error is returned
 - Flat, summary and `--all` modes of `pub`, `family`, `legal`, `number` and `register` return the original typed error, so exit codes 3 (auth), 4 (not found) and 5 (rate limited) are reachable instead of `GENERAL_ERROR` / exit 1

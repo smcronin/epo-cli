@@ -268,7 +268,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 				{Name: "--range", Description: "Result range header (example 1-25)"},
 				{Name: "--constituents", Description: "biblio,abstract,full-cycle"},
 				{Name: "--post", Description: "Use POST body instead of GET query"},
-				{Name: "--all", Description: "Auto-paginate all results"},
+				{Name: "--all", Description: "Auto-paginate all results; a mid-run failure returns partial:true with the rows so far and pagination.resumeRange"},
 				{Name: "--sort", Description: "Client-side sort of the rows fetched, one page unless --all (pub-date-asc|pub-date-desc)"},
 				{Name: "--stdin", Description: "Read one query per stdin line"},
 				{Name: "--flat", Description: "Flatten search results to top-level fields"},
@@ -515,7 +515,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 			OptionalFlags: []methodFlag{
 				{Name: "--range", Description: "Result range header (example 1-25)"},
 				{Name: "--post", Description: "Use POST body instead of GET query"},
-				{Name: "--all", Description: "Auto-paginate all results"},
+				{Name: "--all", Description: "Auto-paginate all results; a mid-run failure returns partial:true with the rows so far and pagination.resumeRange"},
 				{Name: "--stdin", Description: "Read one query per stdin line"},
 				{Name: "--pick", Description: "Project selected row fields; a list stays a list (also with one hit), unmatched fields add a warning"},
 			},

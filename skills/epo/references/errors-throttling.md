@@ -35,6 +35,34 @@
 
 `error.reason` is added when OPS sent an `X-Rejection-Reason` header. It is the raw OPS value; treat it as an opaque string.
 
+## Partial `--all` Failure
+
+When `pub search --all`, `pub search --summary --all`, `pub recent --all` or `register search --all` fails after at least one page, the error envelope also carries what was fetched. `ok` stays `false` and the exit code is the error's own, so a check on `ok` or the exit code behaves as before.
+
+```json
+{
+  "ok": false,
+  "partial": true,
+  "error": { "code": 429, "type": "RATE_LIMITED", "message": "...", "hint": "..." },
+  "command": "epo pub search",
+  "service": "published-data",
+  "request": { "method": "GET", "path": "/published-data/search/biblio", "query": { "q": "applicant=IBM" }, "all": true },
+  "pagination": { "offset": 1, "limit": 100, "total": 5000, "pagesFetched": 7, "returned": 700, "failedRange": "701-800", "resumeRange": "701-800" },
+  "results": ["...700 rows..."],
+  "warnings": ["--all stopped after 7 pages (700 of 2000 retrievable results); the rows fetched so far are included. Resume with --range 701-800 --all."],
+  "version": "..."
+}
+```
+
+What to do:
+- keep the rows in `results`; do not rerun from the start
+- decide from `error.type` (and `error.reason` for a 403 quota rejection) whether to wait or stop
+- resume with the same command plus `--range <pagination.resumeRange> --all`, then append the new rows
+- with `--summary` the partial `results` is a summary of the rows examined so far (`complete: false`)
+- with `-f ndjson|csv|table` the fetched rows are on stdout and the error, hint and resume warning on stderr
+- a failure on the first page has no `partial` key and no rows
+- in a `--stdin` batch the envelope is `ok: true` as usual and the failed query's row has `ok: false`, `error`, `partial: true`, `pagination` and its `results`
+
 ## HTTP 403 Is Usually Not a Credentials Problem
 
 OPS answers 403 for quota and fair-use rejections, blocked accounts, and blacklisting. Bad credentials fail earlier, at the token request.
