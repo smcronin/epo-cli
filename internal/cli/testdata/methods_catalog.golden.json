@@ -411,7 +411,7 @@
       },
       {
         "name": "--pick",
-        "description": "Project selected fields in output"
+        "description": "Project selected row fields; a list stays a list (also with one hit), unmatched fields add a warning"
       }
     ],
     "outputShapeHint": "Published-data envelope with search result set and pagination",
@@ -841,7 +841,7 @@
       },
       {
         "name": "--pick",
-        "description": "Project selected fields in output"
+        "description": "Project selected row fields; a list stays a list (also with one hit), unmatched fields add a warning"
       }
     ],
     "outputShapeHint": "Register envelope with search results",

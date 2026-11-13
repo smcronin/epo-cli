@@ -276,7 +276,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 				{Name: "--summary", Description: "Agent summary output {query,total,topResults}"},
 				{Name: "--flat-pick", Description: "Enable --flat --enrich and set pick fields quickly"},
 				{Name: "--table", Description: "Shortcut for --format table --flat with default fields"},
-				{Name: "--pick", Description: "Project selected fields in output"},
+				{Name: "--pick", Description: "Project selected row fields; a list stays a list (also with one hit), unmatched fields add a warning"},
 			},
 			OutputShapeHint: "Published-data envelope with search result set and pagination",
 			Examples: []string{
@@ -517,7 +517,7 @@ func buildMethodCatalog() []methodCatalogEntry {
 				{Name: "--post", Description: "Use POST body instead of GET query"},
 				{Name: "--all", Description: "Auto-paginate all results"},
 				{Name: "--stdin", Description: "Read one query per stdin line"},
-				{Name: "--pick", Description: "Project selected fields in output"},
+				{Name: "--pick", Description: "Project selected row fields; a list stays a list (also with one hit), unmatched fields add a warning"},
 			},
 			OutputShapeHint: "Register envelope with search results",
 			Examples: []string{

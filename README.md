@@ -87,7 +87,7 @@ MSYS_NO_PATHCONV=1 epo raw get "/published-data/publication/docdb/EP.1000000.A1/
 Global flags designed for automation:
 
 - `-f, --format` (`json`, `ndjson`, `csv`, `table`)
-- `--pick` projection with dot paths and array indexing
+- `--pick` projection with dot paths and array indexing. Bare names pick fields from the result rows and the output keeps its shape (a list stays a list, even with one hit). A pick made only of envelope paths (`results.x`, `pagination.x`, `quota.x`, `throttle.x`, `request.x`, `warnings`) returns one envelope-level object. A field that matches nothing adds a `warnings` entry
 - `--stdin` batch mode for newline-delimited inputs
 - `--all` auto-pagination where supported
 - `--minify` compact JSON output

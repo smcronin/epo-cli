@@ -78,8 +78,16 @@ cat refs.txt | epo pub biblio --stdin --flat -f json -q
 
 ## Projection Patterns
 
-1. Use `--pick` for compact answers.
-2. Array indexing is supported with bracket form:
+1. Use `--pick` for compact answers. Bare names select fields from the result rows:
+```bash
+epo pub search --query 'pa="SAP SE"' --flat --pick reference,title,pubDate -f json -q
+```
+2. The output keeps its shape. A list command returns a `results` array even when there is exactly one hit, so always read `results[0]`; a single-record command (for example `number convert`, `auth check`) returns an object.
+3. A pick made only of envelope paths (`results.x`, `pagination.x`, `quota.x`, `throttle.x`, `request.x`, `warnings`) returns one object keyed by those paths. Do not mix envelope paths with row fields; `ok`, `command`, `service`, `version`, `pagination` and `quota` are printed in the envelope anyway.
+4. Array indexing is supported with bracket form:
 ```text
 results.environments[0].dimensions[0].metrics
 ```
+5. A pick field that matches nothing adds a `warnings` entry naming the field. Check `warnings` before concluding that a field is empty.
+6. With `--summary`, row fields apply to `topResults` and the summary counts are kept.
+7. In `--stdin` batches each input keeps `input`/`query`/`ok`, failed inputs keep their `error`, and the pick applies to each input's `results`.

@@ -78,7 +78,7 @@ func init() {
 	pf.BoolVarP(&flagQuiet, "quiet", "q", false, "Suppress non-data output")
 	pf.IntVar(&flagTimeout, "timeout", 30, "Request timeout in seconds")
 	pf.BoolVar(&flagAll, "all", false, "Auto-paginate all results where supported")
-	pf.StringVar(&flagPick, "pick", "", "Project output fields (comma-separated, dot paths supported)")
+	pf.StringVar(&flagPick, "pick", "", "Project result-row fields (comma-separated, dot paths supported); a list stays a list")
 	pf.BoolVar(&flagStdin, "stdin", false, "Read batch inputs from stdin (newline-separated)")
 
 	rootCmd.AddCommand(newConfigCmd())
@@ -211,55 +211,10 @@ func buildSuccessEnvelope(cmd *cobra.Command, data any) successEnvelope {
 	} else {
 		env.Results = data
 	}
-	if pickResult, ok := projectEnvelopeIfRequested(env); ok {
-		env.Results = pickResult
-		return env
-	}
-	env.Results = applyPickProjection(env.Results)
+	results, pickWarnings := pickResults(env)
+	env.Results = results
+	env.Warnings = append(env.Warnings, pickWarnings...)
 	return env
-}
-
-func projectEnvelopeIfRequested(env successEnvelope) (any, bool) {
-	fields := parsePickFields(flagPick)
-	if len(fields) == 0 {
-		return nil, false
-	}
-
-	envelopeMap := map[string]any{
-		"ok":         env.OK,
-		"command":    env.Command,
-		"service":    env.Service,
-		"request":    env.Request,
-		"pagination": env.Pagination,
-		"throttle":   env.Throttle,
-		"quota":      env.Quota,
-		"results":    env.Results,
-		"warnings":   env.Warnings,
-		"version":    env.Version,
-	}
-	projected := projectByFields(envelopeMap, fields)
-	if !hasProjectionValues(projected) {
-		return nil, false
-	}
-	return projected, true
-}
-
-func hasProjectionValues(v any) bool {
-	switch t := v.(type) {
-	case map[string]any:
-		return len(t) > 0
-	case []map[string]any:
-		for _, row := range t {
-			if len(row) > 0 {
-				return true
-			}
-		}
-		return false
-	case []any:
-		return len(t) > 0
-	default:
-		return v != nil
-	}
 }
 
 func writeJSON(v any) error {
@@ -362,20 +317,29 @@ func writeCSV(env successEnvelope) error {
 }
 
 func normalizeRows(v any) ([]map[string]any, bool) {
+	rows, _, ok := normalizeRowsShape(v)
+	return rows, ok
+}
+
+// normalizeRowsShape flattens v into rows and reports whether v is
+// list-shaped (search hits, family members, a slice) or a single record (one
+// object, one number conversion). --pick uses this to keep the output shape
+// stable: a list stays a list even with a single hit.
+func normalizeRowsShape(v any) (rows []map[string]any, isList bool, ok bool) {
 	if v == nil {
-		return nil, false
+		return nil, false, false
 	}
 	if knownRows, ok := extractKnownRows(v); ok {
-		return knownRows, true
+		return knownRows, !isSingleRecordPayload(v), true
 	}
 	if batchRows, ok := extractKnownBatchRows(v); ok {
-		return batchRows, true
+		return batchRows, true, true
 	}
 
 	rv := reflect.ValueOf(v)
 	for rv.Kind() == reflect.Pointer {
 		if rv.IsNil() {
-			return nil, false
+			return nil, false, false
 		}
 		rv = rv.Elem()
 	}
@@ -387,12 +351,24 @@ func normalizeRows(v any) ([]map[string]any, bool) {
 			row := asRowMap(rv.Index(i).Interface())
 			rows = append(rows, row)
 		}
-		return rows, true
+		return rows, true, true
 	case reflect.Map, reflect.Struct:
-		return []map[string]any{asRowMap(rv.Interface())}, true
+		return []map[string]any{asRowMap(rv.Interface())}, false, true
 	default:
-		return []map[string]any{{"value": rv.Interface()}}, true
+		return []map[string]any{{"value": rv.Interface()}}, false, true
 	}
+}
+
+// isSingleRecordPayload reports whether a raw OPS payload describes one
+// record rather than a result list. A number conversion is the only known-row
+// payload of that kind.
+func isSingleRecordPayload(v any) bool {
+	root, ok := v.(map[string]any)
+	if !ok {
+		return false
+	}
+	worldPatentData := asAnyMap(root["ops:world-patent-data"])
+	return len(asAnyMap(worldPatentData["ops:standardization"])) > 0
 }
 
 func extractKnownBatchRows(v any) ([]map[string]any, bool) {
