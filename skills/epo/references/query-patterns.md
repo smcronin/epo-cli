@@ -70,7 +70,7 @@ Avoid `pd>=YYYYMMDD`; the CLI validates and rejects this pattern.
 ## Pagination and Batch
 
 1. Use `--all` only after validating shape and quota.
-2. Use `--sort pub-date-desc` with `--all` for global chronological output. `--sort` is client-side: without `--all` it orders one page (25 rows), and `--summary` / `pub recent` add a warning plus `results.complete: false` when more results matched than were examined. Above 2000 matches even `--all` is partial; narrow the `pd` window.
+2. Use `--sort pub-date-desc` with `--all` for global chronological output. `--sort` is client-side: without `--all` it orders one page (25 rows), and when more results matched than were examined a sorted `--summary` or flat page (including `pub recent`, which sorts by default) adds a warning. An unsorted `--summary` (`--sort none`, the `pub search` default) adds no warning; read `results.complete: false` as the signal. Above 2000 matches even `--all` is partial; narrow the `pd` window.
 3. If `--all` fails mid-run the error envelope has `partial: true`, the rows fetched so far and `pagination.resumeRange`; rerun with `--range <resumeRange> --all` instead of starting over (see `errors-throttling.md`).
 4. Use stdin mode for repeatable batch jobs:
 ```bash

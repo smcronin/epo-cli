@@ -21,7 +21,7 @@ epo usage quota -f json -q
 epo pub search --query 'applicant="SAP SE" and pd within "20250101 20260305"' --summary -f json -q
 epo pub recent --applicant "SAP SE" --days 7 --all --summary -f json -q
 ```
-`--summary` returns `{query,total,examined,sortedBy,complete,topResults}`. `topResults` are taken from the `examined` rows only (one page of 25 unless `--all`), and `--sort` is applied client-side to those rows. When `complete` is `false` a warning says so; add `--all` (up to 2000 results) or narrow the date window for a true most-recent list.
+`--summary` returns `{query,total,examined,sortedBy,complete,topResults}`. `topResults` are taken from the `examined` rows only (one page of 25 unless `--all`), and `--sort` is applied client-side to those rows. When a sort is applied (`--sort pub-date-desc`/`pub-date-asc`, the default for `pub recent`) and `complete` is `false`, a warning says the sort covered only the rows examined. Without a sort (`pub search` defaults to `--sort none`) there is no warning: `complete: false` is the only signal. Either way, add `--all` (up to 2000 results) or narrow the date window for a true most-recent list.
 
 2. "Fetch publication detail":
 ```bash
