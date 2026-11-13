@@ -305,11 +305,11 @@ echo "applicant=IBM" | epo pub search --stdin --all --table
 	cmd.Flags().StringVar(&constituents, "constituents", "", "Search constituents (for example: biblio,abstract,full-cycle)")
 	cmd.Flags().StringVar(&rangeHeader, "range", "", "Result range, for example 1-25")
 	cmd.Flags().BoolVar(&usePost, "post", false, "Use POST instead of GET")
-	cmd.Flags().StringVar(&sortModeRaw, "sort", "none", "Client sort mode: none, pub-date-asc, pub-date-desc")
+	cmd.Flags().StringVar(&sortModeRaw, "sort", "none", "Client-side sort of the rows fetched (one page unless --all): none, pub-date-asc, pub-date-desc")
 	cmd.Flags().BoolVar(&flatMode, "flat", false, "Return flattened search rows (country/docNumber/kind/pubDate/title)")
 	cmd.Flags().BoolVar(&tableMode, "table", false, "Shortcut for --format table --flat and default --pick columns")
 	cmd.Flags().BoolVar(&enrichMode, "enrich", false, "Ensure biblio-enriched fields (title/pubDate) in flat output")
-	cmd.Flags().BoolVar(&summaryMode, "summary", false, "Return agent summary: {query,total,topResults}")
+	cmd.Flags().BoolVar(&summaryMode, "summary", false, "Return agent summary {query,total,examined,sortedBy,complete,topResults}; topResults come from the rows fetched (one page unless --all)")
 	cmd.Flags().StringVar(&flatPick, "flat-pick", "", "Shorthand: enables --flat --enrich and sets --pick when provided")
 	return cmd
 }
@@ -329,10 +329,20 @@ func newPubRecentCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "recent",
 		Short: "Search recent publications by CPC, applicant, inventor, or title",
+		Long: strings.TrimSpace(`
+Search a publication-date window (--days back from today) by CPC, applicant,
+inventor, or title.
+
+The sort is applied client-side to the rows that were fetched. Without --all
+that is one page (25 rows), which is not necessarily the newest 25 of all
+matches. Check results.complete (with --summary), pagination.total and
+warnings. For a true most-recent list use --all (OPS returns at most 2000
+results per query) or a narrower --days window.
+`),
 		Example: strings.TrimSpace(`
-epo pub recent --cpc G06N --days 30 --summary -f json -q
-epo pub recent --applicant "SAP SE" --days 7 --summary -f json -q
-epo pub recent --cpc H04L --inventor "Smith" --days 14 -f json -q
+epo pub recent --applicant "SAP SE" --days 7 --all --summary -f json -q
+epo pub recent --cpc H04L --inventor "Smith" --days 14 --all -f json -q
+epo pub recent --cpc G06N --days 30 --summary -f json -q   # total plus a sample; see results.complete
 `),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			parts := []string{}
@@ -389,9 +399,9 @@ epo pub recent --cpc H04L --inventor "Smith" --days 14 -f json -q
 	cmd.Flags().StringVar(&inventor, "inventor", "", "Inventor name")
 	cmd.Flags().StringVar(&title, "title", "", "Title keyword")
 	cmd.Flags().IntVar(&days, "days", 30, "Lookback window in days")
-	cmd.Flags().BoolVar(&summaryMode, "summary", false, "Return agent summary")
+	cmd.Flags().BoolVar(&summaryMode, "summary", false, "Return agent summary {query,total,examined,sortedBy,complete,topResults}; topResults come from the rows fetched (one page unless --all)")
 	cmd.Flags().BoolVar(&flatMode, "flat", false, "Return flattened search rows")
-	cmd.Flags().StringVar(&sortModeRaw, "sort", "pub-date-desc", "Sort: none, pub-date-asc, pub-date-desc")
+	cmd.Flags().StringVar(&sortModeRaw, "sort", "pub-date-desc", "Client-side sort of the rows fetched (one page unless --all): none, pub-date-asc, pub-date-desc")
 	return cmd
 }
 
@@ -727,11 +737,30 @@ func runPublishedSearchAll(cmd *cobra.Command, queries []string, constituents, r
 
 			resp, err := executeOPSRequest(cmd.Context(), request)
 			if err != nil {
-				batchResults = append(batchResults, map[string]any{
-					"query": q,
-					"ok":    false,
-					"error": mapError(err),
-				})
+				batchResults = append(batchResults, allFailureRow(q, err, pages, func() map[string]any {
+					if sortMode != pubSearchSortNone {
+						sortPublishedSearchItems(allItems, sortMode)
+					}
+					var resultPayload any = allItems
+					if flatMode {
+						resultPayload = flattenPublishedSearchItems(allItems)
+					}
+					failedRange := fmt.Sprintf("%d-%d", currentStart, currentEnd)
+					combinedWarnings = append(combinedWarnings, partialAllWarning(pages, len(allItems), retrievableSearchResults(total), failedRange))
+					return map[string]any{
+						"request": map[string]any{
+							"method": request.Method,
+							"path":   request.Path,
+							"query":  compactQuery(request.Query),
+							"all":    true,
+						},
+						"pagination": partialPagination(start, pageSize, total, pages, len(allItems), failedRange),
+						"throttle":   throttleSnapshot,
+						"quota":      quotaSnapshot,
+						"results":    resultPayload,
+						"warnings":   joinAndSortUnique(combinedWarnings),
+					}
+				}))
 				break
 			}
 
@@ -832,6 +861,15 @@ func nextSearchWindow(currentEnd, pageSize int) (start int, end int, ok bool) {
 	return start, end, true
 }
 
+// retrievableSearchResults is how many of total matches a published-data
+// search can return: OPS stops at opsSearchMaxResults per query.
+func retrievableSearchResults(total int) int {
+	if total > opsSearchMaxResults {
+		return opsSearchMaxResults
+	}
+	return total
+}
+
 func searchCeilingWarning(total int) string {
 	return fmt.Sprintf("OPS returns at most %d results per query; %d matched. Narrow the query (for example with a pd date window) to retrieve the rest.", opsSearchMaxResults, total)
 }
@@ -878,6 +916,11 @@ func runPublishedSearchFlat(cmd *cobra.Command, queries []string, constituents, 
 		items, _ := extractPublishedSearchItems(parsed)
 		if sortMode != pubSearchSortNone {
 			sortPublishedSearchItems(items, sortMode)
+			if hasMore, _ := pagination["hasMore"].(bool); hasMore {
+				total, _ := pagination["total"].(int)
+				offset, _ := pagination["offset"].(int)
+				warnings = append(warnings, pageSortWarning("Rows are sorted within", len(items), total, offset, sortMode, false))
+			}
 		}
 		flatRows := flattenPublishedSearchItems(items)
 
@@ -921,6 +964,8 @@ func runPublishedSearchSummary(cmd *cobra.Command, queries []string, constituent
 		pageSize := end - start + 1
 		fetchStart := start
 		fetchEnd := end
+		pages := 0
+		warnings := []string{}
 
 		failed := false
 		for {
@@ -928,15 +973,18 @@ func runPublishedSearchSummary(cmd *cobra.Command, queries []string, constituent
 
 			resp, err := executeOPSRequest(cmd.Context(), request)
 			if err != nil {
-				batch = append(batch, map[string]any{
-					"query": q,
-					"ok":    false,
-					"error": mapError(err),
-				})
+				batch = append(batch, allFailureRow(q, err, pages, func() map[string]any {
+					failedRange := fmt.Sprintf("%d-%d", fetchStart, fetchEnd)
+					warnings = append(warnings, partialAllWarning(pages, len(items), retrievableSearchResults(total), failedRange)+" topResults cover only the rows fetched so far.")
+					row := summaryRow(q, items, total, sortMode, warnings)
+					row["pagination"] = partialPagination(start, pageSize, total, pages, len(items), failedRange)
+					return row
+				}))
 				failed = true
 				break
 			}
 
+			pages++
 			parsed, _ := parseJSONBody(resp.Body)
 			pagination := parseSearchPagination(parsed)
 			if n, ok := pagination["total"].(int); ok {
@@ -955,6 +1003,7 @@ func runPublishedSearchSummary(cmd *cobra.Command, queries []string, constituent
 			}
 			nextStart, nextEnd, belowCeiling := nextSearchWindow(fetchEnd, pageSize)
 			if !belowCeiling {
+				warnings = append(warnings, searchCeilingWarning(total))
 				break
 			}
 			fetchStart, fetchEnd = nextStart, nextEnd
@@ -963,21 +1012,20 @@ func runPublishedSearchSummary(cmd *cobra.Command, queries []string, constituent
 			continue
 		}
 
-		if sortMode != pubSearchSortNone {
-			sortPublishedSearchItems(items, sortMode)
+		row := summaryRow(q, items, total, sortMode, warnings)
+		if topResults := row["topResults"].([]map[string]any); sortMode != pubSearchSortNone && total > len(items) {
+			subject := fmt.Sprintf("topResults are the %d %s of", len(topResults), sortOrderLabel(sortMode))
+			row["warnings"] = append(warnings, pageSortWarning(subject, len(items), total, start, sortMode, allPages))
 		}
-		flatRows := flattenPublishedSearchItems(items)
-		batch = append(batch, map[string]any{
-			"query": q,
-			"ok":    true,
-			"total": total,
-			"topResults": func() []map[string]any {
-				if len(flatRows) <= 10 {
-					return flatRows
-				}
-				return flatRows[:10]
-			}(),
-		})
+		row["ok"] = true
+		row["pagination"] = map[string]any{
+			"offset":       start,
+			"limit":        pageSize,
+			"total":        total,
+			"pagesFetched": pages,
+			"returned":     len(items),
+		}
+		batch = append(batch, row)
 	}
 
 	return finishBatch(cmd, "published-data", batch, func(single map[string]any) responsePayload {
@@ -986,10 +1034,67 @@ func runPublishedSearchSummary(cmd *cobra.Command, queries []string, constituent
 			Results: map[string]any{
 				"query":      single["query"],
 				"total":      single["total"],
+				"examined":   single["examined"],
+				"sortedBy":   single["sortedBy"],
+				"complete":   single["complete"],
 				"topResults": single["topResults"],
 			},
+			Pagination: single["pagination"],
+			Warnings:   toStringSlice(single["warnings"]),
 		}
 	})
+}
+
+// summaryTopResults is how many rows a --summary keeps.
+const summaryTopResults = 10
+
+// summaryRow builds the summary keys for the rows examined so far: the
+// counts, the sort label, whether every match was examined, and the top rows.
+// The caller adds ok and pagination.
+func summaryRow(query string, items []any, total int, sortMode string, warnings []string) map[string]any {
+	if sortMode != pubSearchSortNone {
+		sortPublishedSearchItems(items, sortMode)
+	}
+	topResults := flattenPublishedSearchItems(items)
+	if len(topResults) > summaryTopResults {
+		topResults = topResults[:summaryTopResults]
+	}
+	examined := len(items)
+	return map[string]any{
+		"query":      query,
+		"total":      total,
+		"examined":   examined,
+		"sortedBy":   sortMode,
+		"complete":   examined >= total,
+		"topResults": topResults,
+		"warnings":   warnings,
+	}
+}
+
+func sortOrderLabel(sortMode string) string {
+	if sortMode == pubSearchSortDateAsc {
+		return "earliest"
+	}
+	return "most recent"
+}
+
+// pageSortWarning says that a client-side sort covered only the rows that
+// were fetched, so the output is not the earliest / most recent of every
+// match. The OPS reference kept in this repo documents neither the order of
+// search hits nor a server-side sort, so a page cannot be assumed to hold the
+// newest matches.
+func pageSortWarning(subject string, examined, total, offset int, sortMode string, allPages bool) string {
+	order := sortOrderLabel(sortMode)
+	fetched := fmt.Sprintf("the %d results fetched", examined)
+	if offset > 0 && examined > 0 {
+		fetched = fmt.Sprintf("the %d results fetched (range %d-%d)", examined, offset, offset+examined-1)
+	}
+	advice := fmt.Sprintf("Use --all (up to %d results) or narrow the date window for a true %s list.", opsSearchMaxResults, order)
+	if allPages {
+		advice = fmt.Sprintf("Narrow the query (for example with a pd date window) for a true %s list.", order)
+	}
+	return fmt.Sprintf("%s %s only, out of %d matches (sort %s is applied client-side); these are not the %s of all matches. %s",
+		subject, fetched, total, sortMode, order, advice)
 }
 
 func extractPublishedSearchItems(parsed any) ([]any, bool) {

@@ -16,8 +16,12 @@ func TestParseHeaders(t *testing.T) {
 	header.Set("X-RegisteredPayingQuotaPerWeek-Used", "0")
 	header.Set("X-Throttling-Control", "idle (retrieval=green:200, search=yellow:20)")
 	header.Set("Retry-After", "60000")
+	header.Set("X-Rejection-Reason", "RegisteredQuotaPerWeek")
 
 	meta := ParseHeaders(header)
+	if meta.RejectionReason != "RegisteredQuotaPerWeek" {
+		t.Fatalf("unexpected rejection reason: %q", meta.RejectionReason)
+	}
 	if meta.Quota.IndividualPerHourUsed != 3006 {
 		t.Fatalf("unexpected individual quota: %d", meta.Quota.IndividualPerHourUsed)
 	}

@@ -1,9 +1,38 @@
 package eps
 
 import (
+	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"reflect"
 	"testing"
+
+	epoerrors "github.com/smcronin/epo-cli/internal/errors"
 )
+
+func TestDoMarksForbiddenAsEPSError(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`<html>Forbidden</html>`))
+	}))
+	defer srv.Close()
+
+	client := NewClient(srv.Client())
+	client.SetBaseURL(srv.URL)
+
+	_, err := client.Do(context.Background(), http.MethodGet, "/publication-dates", nil, "text/html")
+
+	var apiErr *epoerrors.APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("expected an API error, got %v", err)
+	}
+	if apiErr.StatusCode != http.StatusForbidden || apiErr.Service != epoerrors.ServiceEPS {
+		t.Fatalf("expected a 403 marked as EPS, got %d / %q", apiErr.StatusCode, apiErr.Service)
+	}
+}
 
 func TestParsePublicationDates(t *testing.T) {
 	t.Parallel()

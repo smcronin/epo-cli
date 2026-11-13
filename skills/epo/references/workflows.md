@@ -18,6 +18,7 @@ epo usage week -f table -q
 ```bash
 epo pub search --query 'applicant="SAP SE" and pd within "20250101 20260305"' --summary -f json -q
 ```
+Read `results.total`, `results.examined` and `results.complete`. If `complete` is `false`, `topResults` is a sample of the first page, not the newest matches.
 2. Expand with flat rows for export:
 ```bash
 epo pub search --query 'applicant="SAP SE" and pd within "20250101 20260305"' --all --sort pub-date-desc --flat -f json -q

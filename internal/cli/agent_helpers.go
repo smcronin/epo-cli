@@ -12,17 +12,6 @@ import (
 	epoerrors "github.com/smcronin/epo-cli/internal/errors"
 )
 
-func applyPickProjection(value any) any {
-	fields := parsePickFields(flagPick)
-	if len(fields) == 0 {
-		return value
-	}
-	if projected, ok := projectBatchResultsByFields(value, fields); ok {
-		return projected
-	}
-	return projectByFields(value, fields)
-}
-
 func parsePickFields(raw string) []string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -41,29 +30,6 @@ func parsePickFields(raw string) []string {
 		}
 		seen[field] = struct{}{}
 		out = append(out, field)
-	}
-	return out
-}
-
-func projectByFields(value any, fields []string) any {
-	rows, ok := normalizeRows(value)
-	if !ok {
-		return value
-	}
-
-	out := make([]map[string]any, 0, len(rows))
-	for _, row := range rows {
-		projected := map[string]any{}
-		for _, field := range fields {
-			if fieldValue, ok := lookupProjectionValue(row, field); ok {
-				projected[field] = fieldValue
-			}
-		}
-		out = append(out, projected)
-	}
-
-	if len(out) == 1 {
-		return out[0]
 	}
 	return out
 }
@@ -93,6 +59,18 @@ func lookupProjectionValue(v any, path string) (any, bool) {
 			}
 			current = next
 		case []any:
+			i, err := strconv.Atoi(segment)
+			if err != nil || i < 0 || i >= len(typed) {
+				return nil, false
+			}
+			current = typed[i]
+		case []map[string]any:
+			i, err := strconv.Atoi(segment)
+			if err != nil || i < 0 || i >= len(typed) {
+				return nil, false
+			}
+			current = typed[i]
+		case []string:
 			i, err := strconv.Atoi(segment)
 			if err != nil || i < 0 || i >= len(typed) {
 				return nil, false
@@ -149,46 +127,6 @@ func splitBracketIndices(segment string) (string, []string) {
 		base = strings.TrimSpace(base[:open] + base[close+1:])
 	}
 	return base, indices
-}
-
-func projectBatchResultsByFields(value any, fields []string) (any, bool) {
-	items, ok := asAnySlice(value)
-	if !ok || len(items) == 0 {
-		return nil, false
-	}
-
-	seenBatch := false
-	projected := make([]map[string]any, 0, len(items))
-	for _, item := range items {
-		row := asAnyMap(item)
-		if len(row) == 0 {
-			return nil, false
-		}
-		_, hasResults := row["results"]
-		_, hasOK := row["ok"]
-		_, hasInput := row["input"]
-		if !(hasResults && (hasOK || hasInput)) {
-			return nil, false
-		}
-		seenBatch = true
-
-		out := map[string]any{}
-		for _, key := range []string{"input", "query", "ok", "error"} {
-			if v, exists := row[key]; exists {
-				out[key] = v
-			}
-		}
-
-		if v, exists := row["results"]; exists {
-			out["results"] = projectByFields(v, fields)
-		}
-		projected = append(projected, out)
-	}
-
-	if !seenBatch {
-		return nil, false
-	}
-	return projected, true
 }
 
 func resolveSingleOrStdinInputs(args []string) ([]string, error) {

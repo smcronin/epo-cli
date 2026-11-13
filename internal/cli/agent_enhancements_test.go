@@ -29,11 +29,10 @@ func TestProjectBatchResultsByFields(t *testing.T) {
 			},
 		},
 	}
-	projected, ok := projectBatchResultsByFields(batch, []string{"reference"})
+	rows, ok := newPickProjector([]string{"reference"}).projectBatch(batch)
 	if !ok {
 		t.Fatal("expected batch projection to match")
 	}
-	rows := projected.([]map[string]any)
 	if len(rows) != 1 {
 		t.Fatalf("expected one batch row, got %d", len(rows))
 	}

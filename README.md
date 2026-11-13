@@ -30,7 +30,8 @@ epo auth check -f json -q
 # Search with biblio-enriched flat output
 epo pub search --query "applicant=\"SAP SE\" and pd within \"20250101 20260305\"" --all --sort pub-date-desc --flat --enrich -f json -q
 
-# Agent summary output
+# Agent summary output: {query,total,examined,sortedBy,complete,topResults}
+# topResults come from the rows examined (one page unless --all); check results.complete
 epo pub search --query "applicant=IBM" --summary --flat-pick "reference,title,pubDate" -f json -q
 
 # Biblio + family + legal
@@ -87,7 +88,7 @@ MSYS_NO_PATHCONV=1 epo raw get "/published-data/publication/docdb/EP.1000000.A1/
 Global flags designed for automation:
 
 - `-f, --format` (`json`, `ndjson`, `csv`, `table`)
-- `--pick` projection with dot paths and array indexing
+- `--pick` projection with dot paths and array indexing. Bare names pick fields from the result rows and the output keeps its shape (a list stays a list, even with one hit). A pick made only of envelope paths (`results.x`, `pagination.x`, `quota.x`, `throttle.x`, `request.x`, `warnings`) returns one envelope-level object. A field that matches nothing adds a `warnings` entry
 - `--stdin` batch mode for newline-delimited inputs
 - `--all` auto-pagination where supported
 - `--minify` compact JSON output
@@ -109,6 +110,10 @@ Stable JSON envelope:
   "version": "..."
 }
 ```
+
+Failures use `{"ok": false, "error": {"code", "type", "message", "hint"}, "version"}` and a typed exit code (2 usage, 3 auth, 4 not found, 5 rate limited, 6 server error). `error.reason` carries the raw `X-Rejection-Reason` when OPS rejects a request for quota reasons (403, reported as rate limited).
+
+If an `--all` run fails after at least one page, the error envelope also has `partial: true`, the rows fetched so far in `results`, and `pagination.resumeRange`; rerun with `--range <resumeRange> --all` to continue. `ok` and the exit code are the same as for any other failure.
 
 ## Release and Versioning
 
@@ -147,6 +152,19 @@ go run ./tools/eval --json-out .tmp/eval/report.json
 - [OPS service reference](docs/api-reference/services.md)
 - [EPS bulk download guide](docs/guides/eps-bulk-download.md)
 - [EPS REST services (official PDF converted)](docs/api-reference/eps-rest-services.md)
+- [OPS reference guide v1.3.20, full text with page markers](docs/api-reference/ops-reference-guide-v1.3.20-full-text.txt)
+
+### Upstream references
+
+The EPO documents this CLI is built against are not stored in this repository. Get them from the EPO:
+
+- [Open Patent Services (OPS) overview and downloads](https://www.epo.org/en/searching-for-patents/data/web-services/ops)
+- [OPS version 3.2 documentation, version 1.3.20 (reference guide, PDF)](https://link.epo.org/web/searching-for-patents/data/en-ops-v3.2-documentation-version-1.3.20.pdf)
+- [OPS quick help for the developer portal tools ("ops_swagger", June 2024, PDF)](https://link.epo.org/web/web-services/ops/June2024_%20ops_swagger.pdf)
+- [Terms and conditions for use of the EPO's Open Patent Services (OPS)](https://www.epo.org/en/service-support/ordering/terms-and-conditions/ops-terms-and-conditions)
+- [Fair use charter for the EPO's online patent information products](https://www.epo.org/en/service-support/ordering/fair-use)
+- [EPO developer portal (registration, credentials, API console)](https://developers.epo.org/)
+- [European Publication Server REST services (PDF)](https://data.epo.org/publication-server/doc/EPS%20REST%20services.pdf)
 
 ## License
 

@@ -62,7 +62,7 @@ func newAuthConfigureCmd() *cobra.Command {
 				"configured":       true,
 				"configFile":       path,
 				"clientIDMasked":   config.Mask(clientID),
-				"clientSecretMask": config.Mask(clientSecret),
+				"clientSecretMask": config.MaskSecret(clientSecret),
 			})
 		},
 	}

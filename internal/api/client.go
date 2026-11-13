@@ -141,13 +141,15 @@ func (c *Client) Do(ctx context.Context, req Request) (Response, error) {
 		}
 
 		lastErr = &epoerrors.APIError{
-			StatusCode: httpResp.StatusCode,
-			Message:    "OPS request failed",
-			Body:       shortBody(body, 1000),
-			RetryAfter: metadata.RetryAfter,
+			StatusCode:      httpResp.StatusCode,
+			Message:         "OPS request failed",
+			Body:            shortBody(body, 1000),
+			RetryAfter:      metadata.RetryAfter,
+			RejectionReason: metadata.RejectionReason,
+			Service:         epoerrors.ServiceOPS,
 		}
 
-		if !shouldRetry(httpResp.StatusCode) || attempt >= c.maxRetries {
+		if !shouldRetry(httpResp.StatusCode, metadata.RetryAfter) || attempt >= c.maxRetries {
 			return resp, lastErr
 		}
 
@@ -213,7 +215,14 @@ func fitsDeadline(ctx context.Context, delay time.Duration) bool {
 	return !ok || time.Until(deadline) > delay
 }
 
-func shouldRetry(statusCode int) bool {
+// shouldRetry reports whether a failed response is worth another attempt. A
+// 403 is a quota / fair-use or account rejection that a blind retry cannot
+// fix, so it is retried only when OPS itself names a wait via Retry-After
+// (the caller still checks that the wait fits the deadline).
+func shouldRetry(statusCode int, retryAfter time.Duration) bool {
+	if statusCode == http.StatusForbidden {
+		return retryAfter > 0
+	}
 	return statusCode == http.StatusTooManyRequests || statusCode >= http.StatusInternalServerError
 }
 

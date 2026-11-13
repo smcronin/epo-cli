@@ -11,7 +11,7 @@ func TestProjectByFields(t *testing.T) {
 			"beta": "x",
 		},
 	}
-	got := projectByFields(input, []string{"alpha", "nested.beta"})
+	got := newPickProjector([]string{"alpha", "nested.beta"}).projectValue(input)
 	row, ok := got.(map[string]any)
 	if !ok {
 		t.Fatalf("expected map result, got %T", got)

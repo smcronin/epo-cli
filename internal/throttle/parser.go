@@ -32,6 +32,10 @@ type Metadata struct {
 	Throttle   State         `json:"throttle,omitempty"`
 	Quota      Quota         `json:"quota,omitempty"`
 	RetryAfter time.Duration `json:"-"`
+	// RejectionReason is the raw X-Rejection-Reason header OPS sends when a
+	// quota is exhausted (for example "RegisteredQuotaPerWeek"). The value is
+	// passed through as an opaque string.
+	RejectionReason string `json:"-"`
 }
 
 func ParseHeaders(header http.Header) Metadata {
@@ -46,7 +50,8 @@ func ParseHeaders(header http.Header) Metadata {
 			RegisteredPerWeekUsed:       parseInt(header.Get("X-RegisteredQuotaPerWeek-Used")),
 			RegisteredPayingPerWeekUsed: parseInt(header.Get("X-RegisteredPayingQuotaPerWeek-Used")),
 		},
-		RetryAfter: ParseRetryAfter(header.Get("Retry-After")),
+		RetryAfter:      ParseRetryAfter(header.Get("Retry-After")),
+		RejectionReason: strings.TrimSpace(header.Get("X-Rejection-Reason")),
 	}
 	return meta
 }

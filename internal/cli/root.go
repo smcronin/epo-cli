@@ -44,10 +44,37 @@ type successEnvelope struct {
 	Version    string   `json:"version"`
 }
 
+// errorEnvelope is the failure envelope. The fields between error and
+// version are set only for a partial failure: an --all run that failed after
+// at least one page, where the rows fetched so far are returned with the
+// error instead of being thrown away.
 type errorEnvelope struct {
-	OK      bool                `json:"ok"`
-	Error   *epoerrors.CLIError `json:"error"`
-	Version string              `json:"version"`
+	OK         bool                `json:"ok"`
+	Partial    bool                `json:"partial,omitempty"`
+	Error      *epoerrors.CLIError `json:"error"`
+	Command    string              `json:"command,omitempty"`
+	Service    string              `json:"service,omitempty"`
+	Request    any                 `json:"request,omitempty"`
+	Pagination any                 `json:"pagination,omitempty"`
+	Results    any                 `json:"results,omitempty"`
+	Warnings   []string            `json:"warnings,omitempty"`
+	Version    string              `json:"version"`
+}
+
+// partialError is returned when an --all run fails mid-way. It unwraps to the
+// original typed error, so the error type and exit code are unchanged, and
+// carries the envelope of what was fetched before the failure.
+type partialError struct {
+	cause    *epoerrors.CLIError
+	envelope successEnvelope
+}
+
+func (e *partialError) Error() string {
+	return e.cause.Error()
+}
+
+func (e *partialError) Unwrap() error {
+	return e.cause
 }
 
 type responsePayload struct {
@@ -78,7 +105,7 @@ func init() {
 	pf.BoolVarP(&flagQuiet, "quiet", "q", false, "Suppress non-data output")
 	pf.IntVar(&flagTimeout, "timeout", 30, "Request timeout in seconds")
 	pf.BoolVar(&flagAll, "all", false, "Auto-paginate all results where supported")
-	pf.StringVar(&flagPick, "pick", "", "Project output fields (comma-separated, dot paths supported)")
+	pf.StringVar(&flagPick, "pick", "", "Project result-row fields (comma-separated, dot paths supported); a list stays a list")
 	pf.BoolVar(&flagStdin, "stdin", false, "Read batch inputs from stdin (newline-separated)")
 
 	rootCmd.AddCommand(newConfigCmd())
@@ -211,55 +238,10 @@ func buildSuccessEnvelope(cmd *cobra.Command, data any) successEnvelope {
 	} else {
 		env.Results = data
 	}
-	if pickResult, ok := projectEnvelopeIfRequested(env); ok {
-		env.Results = pickResult
-		return env
-	}
-	env.Results = applyPickProjection(env.Results)
+	results, pickWarnings := pickResults(env)
+	env.Results = results
+	env.Warnings = append(env.Warnings, pickWarnings...)
 	return env
-}
-
-func projectEnvelopeIfRequested(env successEnvelope) (any, bool) {
-	fields := parsePickFields(flagPick)
-	if len(fields) == 0 {
-		return nil, false
-	}
-
-	envelopeMap := map[string]any{
-		"ok":         env.OK,
-		"command":    env.Command,
-		"service":    env.Service,
-		"request":    env.Request,
-		"pagination": env.Pagination,
-		"throttle":   env.Throttle,
-		"quota":      env.Quota,
-		"results":    env.Results,
-		"warnings":   env.Warnings,
-		"version":    env.Version,
-	}
-	projected := projectByFields(envelopeMap, fields)
-	if !hasProjectionValues(projected) {
-		return nil, false
-	}
-	return projected, true
-}
-
-func hasProjectionValues(v any) bool {
-	switch t := v.(type) {
-	case map[string]any:
-		return len(t) > 0
-	case []map[string]any:
-		for _, row := range t {
-			if len(row) > 0 {
-				return true
-			}
-		}
-		return false
-	case []any:
-		return len(t) > 0
-	default:
-		return v != nil
-	}
 }
 
 func writeJSON(v any) error {
@@ -362,20 +344,29 @@ func writeCSV(env successEnvelope) error {
 }
 
 func normalizeRows(v any) ([]map[string]any, bool) {
+	rows, _, ok := normalizeRowsShape(v)
+	return rows, ok
+}
+
+// normalizeRowsShape flattens v into rows and reports whether v is
+// list-shaped (search hits, family members, a slice) or a single record (one
+// object, one number conversion). --pick uses this to keep the output shape
+// stable: a list stays a list even with a single hit.
+func normalizeRowsShape(v any) (rows []map[string]any, isList bool, ok bool) {
 	if v == nil {
-		return nil, false
+		return nil, false, false
 	}
 	if knownRows, ok := extractKnownRows(v); ok {
-		return knownRows, true
+		return knownRows, !isSingleRecordPayload(v), true
 	}
 	if batchRows, ok := extractKnownBatchRows(v); ok {
-		return batchRows, true
+		return batchRows, true, true
 	}
 
 	rv := reflect.ValueOf(v)
 	for rv.Kind() == reflect.Pointer {
 		if rv.IsNil() {
-			return nil, false
+			return nil, false, false
 		}
 		rv = rv.Elem()
 	}
@@ -387,12 +378,24 @@ func normalizeRows(v any) ([]map[string]any, bool) {
 			row := asRowMap(rv.Index(i).Interface())
 			rows = append(rows, row)
 		}
-		return rows, true
+		return rows, true, true
 	case reflect.Map, reflect.Struct:
-		return []map[string]any{asRowMap(rv.Interface())}, true
+		return []map[string]any{asRowMap(rv.Interface())}, false, true
 	default:
-		return []map[string]any{{"value": rv.Interface()}}, true
+		return []map[string]any{{"value": rv.Interface()}}, false, true
 	}
+}
+
+// isSingleRecordPayload reports whether a raw OPS payload describes one
+// record rather than a result list. A number conversion is the only known-row
+// payload of that kind.
+func isSingleRecordPayload(v any) bool {
+	root, ok := v.(map[string]any)
+	if !ok {
+		return false
+	}
+	worldPatentData := asAnyMap(root["ops:world-patent-data"])
+	return len(asAnyMap(worldPatentData["ops:standardization"])) > 0
 }
 
 func extractKnownBatchRows(v any) ([]map[string]any, bool) {
@@ -977,16 +980,46 @@ func textValue(v any) string {
 
 func handleError(err error) int {
 	cliErr := mapError(err)
+	var partial *partialError
+	hasPartial := errors.As(err, &partial)
+
 	if flagFormat == "json" {
-		_ = writeJSON(errorEnvelope{
+		env := errorEnvelope{
 			OK:      false,
 			Error:   cliErr,
 			Version: version,
-		})
+		}
+		if hasPartial {
+			env.Partial = true
+			env.Command = partial.envelope.Command
+			env.Service = partial.envelope.Service
+			env.Request = partial.envelope.Request
+			env.Pagination = partial.envelope.Pagination
+			env.Results = partial.envelope.Results
+			env.Warnings = partial.envelope.Warnings
+		}
+		_ = writeJSON(env)
 	} else {
+		if hasPartial {
+			// The rows fetched before the failure go to stdout through the
+			// normal writer; the error still goes to stderr.
+			switch flagFormat {
+			case "ndjson":
+				_ = writeNDJSON(partial.envelope)
+			case "csv":
+				_ = writeCSV(partial.envelope)
+			case "table":
+				_ = writeTable(partial.envelope)
+			}
+		}
 		fmt.Fprintf(os.Stderr, "Error: %s\n", cliErr.Message)
 		if cliErr.Hint != "" {
 			fmt.Fprintf(os.Stderr, "Hint: %s\n", cliErr.Hint)
+		}
+		if hasPartial {
+			for _, warning := range partial.envelope.Warnings {
+				fmt.Fprintf(os.Stderr, "Warning: %s\n", warning)
+			}
 		}
 	}
 	return mapExitCode(cliErr)
@@ -1009,13 +1042,15 @@ func mapError(err error) *epoerrors.CLIError {
 	var apiErr *epoerrors.APIError
 	if errors.As(err, &apiErr) {
 		switch {
-		case apiErr.StatusCode == 401 || apiErr.StatusCode == 403:
+		case apiErr.StatusCode == 401:
 			return &epoerrors.CLIError{
 				Code:    apiErr.StatusCode,
 				Type:    "AUTH_FAILURE",
 				Message: apiErr.Error(),
 				Hint:    "Verify client credentials via `epo auth check`",
 			}
+		case apiErr.StatusCode == 403:
+			return mapForbidden(apiErr)
 		case apiErr.StatusCode == 404:
 			return &epoerrors.CLIError{
 				Code:    apiErr.StatusCode,
@@ -1053,6 +1088,62 @@ func mapError(err error) *epoerrors.CLIError {
 		Code:    1,
 		Type:    "GENERAL_ERROR",
 		Message: err.Error(),
+	}
+}
+
+// mapForbidden classifies a 403. OPS uses 403 for quota / fair-use rejections
+// (with an X-Rejection-Reason header), for blocked developer accounts and for
+// blacklisting or robot detection; bad credentials are a 400/401 at the token
+// endpoint. Only the first group is a rate limit, and none of them is fixed by
+// re-entering credentials.
+func mapForbidden(apiErr *epoerrors.APIError) *epoerrors.CLIError {
+	body := strings.ToLower(apiErr.Body)
+	upstream := "OPS"
+	if apiErr.Service == epoerrors.ServiceEPS {
+		upstream = "EPS"
+	}
+
+	if apiErr.RejectionReason != "" || strings.Contains(body, "fair use") {
+		var hint string
+		switch {
+		case upstream == "EPS":
+			hint = "EPS rejected the request under its fair-use policy. EPS takes no credentials, so this is not a credentials problem; " +
+				"its fair-use limit is IP-based (10 GB in any sliding 7-day window). Stop and retry after the window rolls forward."
+		case apiErr.RejectionReason != "":
+			hint = fmt.Sprintf("OPS rejected the request because a quota is exhausted (X-Rejection-Reason: %s). ", apiErr.RejectionReason) +
+				"This is not a credentials problem; do not re-enter or rotate them. " +
+				"The hourly quota frees up on a rolling one-hour window and the weekly quota resets at the start of the calendar week (midnight UTC). Stop and retry after the quota resets."
+		default:
+			hint = "OPS rejected the request under its fair-use policy (no X-Rejection-Reason header was sent). " +
+				"This is not a credentials problem; do not re-enter or rotate them. " +
+				"The hourly quota frees up on a rolling one-hour window and the weekly quota resets at the start of the calendar week (midnight UTC). Stop and retry later."
+		}
+		if apiErr.RetryAfter > 0 {
+			hint += fmt.Sprintf(" %s asked to wait %s before retrying (Retry-After: %d ms).", upstream, apiErr.RetryAfter, apiErr.RetryAfter.Milliseconds())
+		}
+		return &epoerrors.CLIError{
+			Code:    apiErr.StatusCode,
+			Type:    "RATE_LIMITED",
+			Message: apiErr.Error(),
+			Hint:    hint,
+			Reason:  apiErr.RejectionReason,
+		}
+	}
+
+	hint := "OPS refused the request (403) without a quota reason. This does not by itself mean the credentials are wrong; " +
+		"the response body is in the message. Do not loop on re-entering credentials; wait before retrying and check the account in the EPO developer portal if it persists."
+	switch {
+	case strings.Contains(body, "developer account is blocked"):
+		hint = "EPO has blocked this developer account. Re-entering credentials will not help; contact EPO support."
+	case upstream == "EPS":
+		hint = "EPS refused the request (403). EPS takes no credentials, so this is not a credentials problem; " +
+			"the response body is in the message. EPS limits are IP-based, so wait before retrying."
+	}
+	return &epoerrors.CLIError{
+		Code:    apiErr.StatusCode,
+		Type:    "AUTH_FAILURE",
+		Message: apiErr.Error(),
+		Hint:    hint,
 	}
 }
 

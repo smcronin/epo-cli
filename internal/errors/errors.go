@@ -19,6 +19,9 @@ type CLIError struct {
 	Type    string `json:"type"`
 	Message string `json:"message"`
 	Hint    string `json:"hint,omitempty"`
+	// Reason is the raw X-Rejection-Reason header value when OPS rejected the
+	// request for quota / fair-use reasons. It is an opaque OPS string.
+	Reason string `json:"reason,omitempty"`
 }
 
 func (e *CLIError) Error() string {
@@ -37,7 +40,18 @@ type APIError struct {
 	Body       string
 	// RetryAfter is the wait OPS requested via the Retry-After header, if any.
 	RetryAfter time.Duration
+	// RejectionReason is the raw X-Rejection-Reason header value, if any.
+	RejectionReason string
+	// Service names the upstream that answered: "" or ServiceOPS for OPS,
+	// ServiceEPS for the European Publication Server (which takes no
+	// credentials).
+	Service string
 }
+
+const (
+	ServiceOPS = "OPS"
+	ServiceEPS = "EPS"
+)
 
 func (e *APIError) Error() string {
 	if e == nil {

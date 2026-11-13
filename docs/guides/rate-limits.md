@@ -89,6 +89,8 @@ X-Rejection-Reason: RegisteredQuotaPerWeek
 </error>
 ```
 
+The `epo` CLI reports this as `RATE_LIMITED` (exit 5), not as an authentication failure. The raw `X-Rejection-Reason` value is passed through as `error.reason` and quoted in the hint; treat it as an opaque string. A 403 is retried only when OPS also sends a `Retry-After` that fits inside `--timeout`. Other 403 responses ("Developer account is blocked", "This request has been rejected") stay `AUTH_FAILURE` (exit 3) with a hint that does not ask you to re-enter credentials.
+
 ---
 
 ## Best Practices

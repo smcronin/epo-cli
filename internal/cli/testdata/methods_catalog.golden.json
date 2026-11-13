@@ -14,7 +14,7 @@
         "description": "OPS client secret"
       }
     ],
-    "outputShapeHint": "Configuration status with config file path and masked credentials",
+    "outputShapeHint": "Configuration status with config file path, masked client ID, and a fixed mask for the secret",
     "examples": [
       "epo auth configure --client-id $EPO_CLIENT_ID --client-secret $EPO_CLIENT_SECRET -f json -q"
     ]
@@ -87,7 +87,7 @@
         "example": "your-client-secret"
       }
     ],
-    "outputShapeHint": "Save status, source, config path, and masked credentials",
+    "outputShapeHint": "Save status, source, config path, masked client ID, and a fixed mask for the secret",
     "examples": [
       "epo config set-creds --from-env -f json -q",
       "epo config set-creds --from-dotenv .env -f json -q",
@@ -379,11 +379,11 @@
       },
       {
         "name": "--all",
-        "description": "Auto-paginate all results"
+        "description": "Auto-paginate all results; a mid-run failure returns partial:true with the rows so far and pagination.resumeRange"
       },
       {
         "name": "--sort",
-        "description": "Sort results by publication date (pub-date-asc|pub-date-desc)"
+        "description": "Client-side sort of the rows fetched, one page unless --all (pub-date-asc|pub-date-desc)"
       },
       {
         "name": "--stdin",
@@ -399,7 +399,7 @@
       },
       {
         "name": "--summary",
-        "description": "Agent summary output {query,total,topResults}"
+        "description": "Agent summary {query,total,examined,sortedBy,complete,topResults}; topResults come from the rows fetched (one page unless --all)"
       },
       {
         "name": "--flat-pick",
@@ -411,7 +411,7 @@
       },
       {
         "name": "--pick",
-        "description": "Project selected fields in output"
+        "description": "Project selected row fields; a list stays a list (also with one hit), unmatched fields add a warning"
       }
     ],
     "outputShapeHint": "Published-data envelope with search result set and pagination",
@@ -452,7 +452,7 @@
       },
       {
         "name": "--summary",
-        "description": "Return agent summary"
+        "description": "Agent summary {query,total,examined,sortedBy,complete,topResults}; topResults come from the rows fetched (one page unless --all)"
       },
       {
         "name": "--flat",
@@ -460,17 +460,18 @@
       },
       {
         "name": "--sort",
+        "description": "Client-side sort of the rows fetched, one page unless --all",
         "default": "pub-date-desc"
       },
       {
         "name": "--all",
-        "description": "Auto-paginate all results"
+        "description": "Auto-paginate all results (needed for a true most-recent list; OPS caps a query at 2000)"
       }
     ],
-    "outputShapeHint": "Published-data envelope with search results (delegates to pub search)",
+    "outputShapeHint": "Published-data envelope with search results (delegates to pub search); without --all the rows are one sorted page, not the newest of all matches",
     "examples": [
-      "epo pub recent --cpc G06N --days 30 --summary -f json -q",
-      "epo pub recent --applicant \"SAP SE\" --days 7 --summary -f json -q"
+      "epo pub recent --applicant \"SAP SE\" --days 7 --all --summary -f json -q",
+      "epo pub recent --cpc G06N --days 30 --summary -f json -q"
     ]
   },
   {
@@ -833,7 +834,7 @@
       },
       {
         "name": "--all",
-        "description": "Auto-paginate all results"
+        "description": "Auto-paginate all results; a mid-run failure returns partial:true with the rows so far and pagination.resumeRange"
       },
       {
         "name": "--stdin",
@@ -841,7 +842,7 @@
       },
       {
         "name": "--pick",
-        "description": "Project selected fields in output"
+        "description": "Project selected row fields; a list stays a list (also with one hit), unmatched fields add a warning"
       }
     ],
     "outputShapeHint": "Register envelope with search results",

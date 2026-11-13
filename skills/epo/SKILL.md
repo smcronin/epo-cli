@@ -13,6 +13,7 @@ Use this skill to run patent research and CLI QA against the local `epo` binary 
 ```bash
 epo pub search --query 'pa="SAP SE" and pd within "20250101 20260307"' --summary -f json -q
 ```
+`--summary` examines one page (25 rows) unless `--all` is set. Read `results.complete`: when it is `false`, `topResults` is a sample of `results.examined` rows out of `results.total`, not the newest matches. For the newest matches add `--all --sort pub-date-desc` (up to 2000 results, 100 per request) or narrow the `pd` window.
 
 **Get the patent family:**
 ```bash
@@ -29,10 +30,11 @@ epo status EP.4610885.A1 --register-ref EP22198765 -f json -q
 epo number normalize EP04610885 -f json -q
 ```
 
-**Browse recent grants in a CPC class:**
+**Sample recent publications in a CPC class:**
 ```bash
 epo pub recent --cpc G06N --days 30 --summary -f json -q
 ```
+This returns the total and a sample from the first page. For the true most-recent list add `--all` (OPS returns at most 2000 results per query) or shorten `--days` until `results.complete` is `true`.
 
 ## Quick Start
 
@@ -86,7 +88,7 @@ epo methods --json -f json -q
 ## Research Defaults
 
 - Prefer `-f json -q`.
-- Prefer `pub search --summary` for quick answerability.
+- Prefer `pub search --summary` for quick answerability, and check `results.complete` and `warnings` before calling `topResults` "the most recent".
 - Prefer `family summary` before `family get` for triage.
 - Prefer `legal get --flat` and `register get --summary` for diligence timelines.
 - Use `status` to merge legal + register + procedural data in one response.

@@ -70,16 +70,25 @@ Avoid `pd>=YYYYMMDD`; the CLI validates and rejects this pattern.
 ## Pagination and Batch
 
 1. Use `--all` only after validating shape and quota.
-2. Use `--sort pub-date-desc` with `--all` for global chronological output.
-3. Use stdin mode for repeatable batch jobs:
+2. Use `--sort pub-date-desc` with `--all` for global chronological output. `--sort` is client-side: without `--all` it orders one page (25 rows), and when more results matched than were examined a sorted `--summary` or flat page (including `pub recent`, which sorts by default) adds a warning. An unsorted `--summary` (`--sort none`, the `pub search` default) adds no warning; read `results.complete: false` as the signal. Above 2000 matches even `--all` is partial; narrow the `pd` window.
+3. If `--all` fails mid-run the error envelope has `partial: true`, the rows fetched so far and `pagination.resumeRange`; rerun with `--range <resumeRange> --all` instead of starting over (see `errors-throttling.md`).
+4. Use stdin mode for repeatable batch jobs:
 ```bash
 cat refs.txt | epo pub biblio --stdin --flat -f json -q
 ```
 
 ## Projection Patterns
 
-1. Use `--pick` for compact answers.
-2. Array indexing is supported with bracket form:
+1. Use `--pick` for compact answers. Bare names select fields from the result rows:
+```bash
+epo pub search --query 'pa="SAP SE"' --flat --pick reference,title,pubDate -f json -q
+```
+2. The output keeps its shape. A list command returns a `results` array even when there is exactly one hit, so always read `results[0]`; a single-record command (for example `number convert`, `auth check`) returns an object.
+3. A pick made only of envelope paths (`results.x`, `pagination.x`, `quota.x`, `throttle.x`, `request.x`, `warnings`) returns one object keyed by those paths. Do not mix envelope paths with row fields; `ok`, `command`, `service`, `version`, `pagination` and `quota` are printed in the envelope anyway.
+4. Array indexing is supported with bracket form:
 ```text
 results.environments[0].dimensions[0].metrics
 ```
+5. A pick field that matches nothing adds a `warnings` entry naming the field. Check `warnings` before concluding that a field is empty.
+6. With `--summary`, row fields apply to `topResults` and the summary counts are kept.
+7. In `--stdin` batches each input keeps `input`/`query`/`ok`, failed inputs keep their `error`, and the pick applies to each input's `results`.
