@@ -152,6 +152,19 @@ go run ./tools/eval --json-out .tmp/eval/report.json
 - [OPS service reference](docs/api-reference/services.md)
 - [EPS bulk download guide](docs/guides/eps-bulk-download.md)
 - [EPS REST services (official PDF converted)](docs/api-reference/eps-rest-services.md)
+- [OPS reference guide v1.3.20, full text with page markers](docs/api-reference/ops-reference-guide-v1.3.20-full-text.txt)
+
+### Upstream references
+
+The EPO documents this CLI is built against are not stored in this repository. Get them from the EPO:
+
+- [Open Patent Services (OPS) overview and downloads](https://www.epo.org/en/searching-for-patents/data/web-services/ops)
+- [OPS version 3.2 documentation, version 1.3.20 (reference guide, PDF)](https://link.epo.org/web/searching-for-patents/data/en-ops-v3.2-documentation-version-1.3.20.pdf)
+- [OPS quick help for the developer portal tools ("ops_swagger", June 2024, PDF)](https://link.epo.org/web/web-services/ops/June2024_%20ops_swagger.pdf)
+- [Terms and conditions for use of the EPO's Open Patent Services (OPS)](https://www.epo.org/en/service-support/ordering/terms-and-conditions/ops-terms-and-conditions)
+- [Fair use charter for the EPO's online patent information products](https://www.epo.org/en/service-support/ordering/fair-use)
+- [EPO developer portal (registration, credentials, API console)](https://developers.epo.org/)
+- [European Publication Server REST services (PDF)](https://data.epo.org/publication-server/doc/EPS%20REST%20services.pdf)
 
 ## License
 

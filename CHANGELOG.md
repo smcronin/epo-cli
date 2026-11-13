@@ -39,6 +39,10 @@ All notable changes to this project will be documented in this file.
 - `epo methods` describes the default cpc output accurately; skill docs now cover the `eps` and `update` command groups
 - Removed unused code and merged duplicated request, envelope and batch-output blocks into shared helpers
 
+### Removed
+- The four EPO PDFs (OPS reference guide, OPS swagger quick help, OPS terms and conditions, EPS REST services; 9.7 MB) are no longer tracked. The README lists the official EPO pages under "Upstream references"; the reference guide full text and the EPS Markdown conversion stay in `docs/api-reference/`. Git history and the `v0.2.0` / `v0.3.0` tags still contain the files
+- The unused `examples/` package (`auth.go`, `throttle.go`, `queries.sh`). It was not imported or built into the CLI, and its auth example retried a 403 as an expired token
+
 ### Testing
 - Added offline tests that run command paths through a stub HTTP transport (errors, pagination, usage errors, token reuse) and a synthetic-archive test for `epo update`
 

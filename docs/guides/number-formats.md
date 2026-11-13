@@ -186,4 +186,4 @@ Key codes to know:
 | pBRE999 | ERROR | Transformation failed, using original |
 | BRE006 | ERROR | No matching pattern found |
 
-See full table in [OPS Reference Guide](ops-reference-guide-v1.3.20.md) section 3.3.
+See full table in the [OPS Reference Guide](../api-reference/ops-reference-guide-v1.3.20-full-text.txt) section 3.3.
